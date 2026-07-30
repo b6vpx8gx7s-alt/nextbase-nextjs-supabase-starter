@@ -16,7 +16,7 @@ import { ChevronUp, Home, Lock, LogOut, Settings, Salad } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTransition } from "react";
-const navigationItems: { title: string; url: string; icon: React.ElementType }[] = [
+const navigationItems: { title: string; url: string; icon: React.ElementType; external?: boolean }[] = [
   {
     title: 'Dashboard',
     url: '/dashboard',
@@ -24,8 +24,9 @@ const navigationItems: { title: string; url: string; icon: React.ElementType }[]
   },
   {
     title: 'Planes Nutricionales',
-    url: '/nutrition',
+    url: 'https://nutrition.roda.ink/nutrition',
     icon: Salad,
+    external: true,
   },
   {
     title: 'Private Items',
@@ -60,15 +61,22 @@ export function AppSidebarContent({ user }: { user: User }) {
       <SidebarGroupContent>
         <SidebarMenu>
           {navigationItems.map((item) => {
-            const isActive = pathname === item.url;
+            const isActive = !item.external && pathname === item.url;
             const Icon = item.icon;
             return (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton asChild isActive={isActive}>
-                  <Link href={item.url}>
-                    <Icon />
-                    <span>{item.title}</span>
-                  </Link>
+                  {item.external ? (
+                    <a href={item.url} target="_blank" rel="noopener noreferrer">
+                      <Icon />
+                      <span>{item.title}</span>
+                    </a>
+                  ) : (
+                    <Link href={item.url}>
+                      <Icon />
+                      <span>{item.title}</span>
+                    </Link>
+                  )}
                 </SidebarMenuButton>
               </SidebarMenuItem>
             );
