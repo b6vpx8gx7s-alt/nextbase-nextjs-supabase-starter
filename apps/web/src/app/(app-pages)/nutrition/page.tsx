@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { PlanEditor } from '@/components/nutrition/PlanEditor'
 import { PlanHistory } from '@/components/nutrition/PlanHistory'
 import { PlanDetail } from '@/components/nutrition/PlanDetail'
@@ -12,6 +12,14 @@ export default function NutritionPage() {
   const [view, setView] = useState<View>('list')
   const [selectedPlan, setSelectedPlan] = useState<NutritionPlan | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [businessName, setBusinessName] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/nutrition/user-context')
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.businessName) setBusinessName(d.businessName) })
+      .catch(() => {})
+  }, [])
 
   function refresh() {
     setRefreshTrigger(t => t + 1)
@@ -65,6 +73,7 @@ export default function NutritionPage() {
       <div className="p-4 md:p-6">
         <PlanDetail
           plan={selectedPlan}
+          businessName={businessName}
           onBack={() => setView('list')}
           onEdit={plan => { setSelectedPlan(plan); setView('edit') }}
         />
@@ -76,6 +85,7 @@ export default function NutritionPage() {
     <div className="p-4 md:p-6">
       <PlanHistory
         refreshTrigger={refreshTrigger}
+        businessName={businessName}
         onNew={() => setView('new')}
         onView={plan => { setSelectedPlan(plan); setView('detail') }}
         onEdit={plan => { setSelectedPlan(plan); setView('edit') }}

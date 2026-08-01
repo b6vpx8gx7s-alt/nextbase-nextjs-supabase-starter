@@ -65,8 +65,10 @@ function macroStr(m: Macros): string {
 
 export async function exportPlanToPDF(
   plan: NutritionPlan,
-  meals: NutritionMeal[]
+  meals: NutritionMeal[],
+  businessName?: string | null
 ): Promise<void> {
+  const brandName = businessName || 'RODA'
   // Dynamic import keeps jsPDF out of the initial bundle
   const { default: jsPDF } = await import('jspdf')
   const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
@@ -90,7 +92,7 @@ export async function exportPlanToPDF(
     normal(7)
     tc(...WHITE)
     doc.text(
-      `RODA  ·  Plan Nutricional  ·  ${fmtDate(new Date().toISOString())}`,
+      `${brandName}  ·  Plan Nutricional  ·  ${fmtDate(new Date().toISOString())}`,
       M,
       fy + 5
     )
@@ -106,7 +108,7 @@ export async function exportPlanToPDF(
     doc.rect(0, 0, PAGE_W, 7, 'F')
     bold(7.5)
     tc(...WHITE)
-    doc.text('RODA — Plan Nutricional', M, 5)
+    doc.text(`${brandName} — Plan Nutricional`, M, 5)
     normal(7)
     doc.text(plan.client_name, PAGE_W - M, 5, { align: 'right' })
     y = 13
@@ -122,7 +124,7 @@ export async function exportPlanToPDF(
 
   bold(18)
   tc(...WHITE)
-  doc.text('RODA', M, 15)
+  doc.text(brandName, M, 15)
 
   doc.setTextColor(195, 230, 242)
   normal(10)

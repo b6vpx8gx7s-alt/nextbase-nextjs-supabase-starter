@@ -9,6 +9,7 @@ import { exportPlanToPDF } from '@/lib/nutrition-pdf'
 
 interface PlanDetailProps {
   plan: NutritionPlan
+  businessName?: string | null
   onBack: () => void
   onEdit: (plan: NutritionPlan) => void
 }
@@ -26,7 +27,7 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })
 }
 
-export function PlanDetail({ plan, onBack, onEdit }: PlanDetailProps) {
+export function PlanDetail({ plan, businessName, onBack, onEdit }: PlanDetailProps) {
   const [meals, setMeals] = useState<NutritionMeal[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState('')
@@ -89,7 +90,7 @@ export function PlanDetail({ plan, onBack, onEdit }: PlanDetailProps) {
     if (pdfState === 'loading') return
     setPdfState('loading')
     try {
-      await exportPlanToPDF(plan, meals)
+      await exportPlanToPDF(plan, meals, businessName)
       setPdfState('done')
       setTimeout(() => setPdfState('idle'), 3000)
     } catch {

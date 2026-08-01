@@ -12,13 +12,14 @@ interface PlanHistoryProps {
   onView: (plan: NutritionPlan) => void
   onEdit: (plan: NutritionPlan) => void
   refreshTrigger?: number
+  businessName?: string | null
 }
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export function PlanHistory({ onNew, onView, onEdit, refreshTrigger }: PlanHistoryProps) {
+export function PlanHistory({ onNew, onView, onEdit, refreshTrigger, businessName }: PlanHistoryProps) {
   const [plans, setPlans] = useState<NutritionPlan[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isDuplicating, setIsDuplicating] = useState<string | null>(null)
@@ -95,7 +96,7 @@ export function PlanHistory({ onNew, onView, onEdit, refreshTrigger }: PlanHisto
     try {
       const r = await fetch(`/api/nutrition/meals/${plan.id}`)
       const meals: NutritionMeal[] = r.ok ? await r.json() : []
-      await exportPlanToPDF(plan, meals)
+      await exportPlanToPDF(plan, meals, businessName)
       setPdfState(prev => ({ ...prev, [plan.id]: 'done' }))
       setTimeout(() => setPdfState(prev => { const next = { ...prev }; delete next[plan.id]; return next }), 3000)
     } catch {
