@@ -16,6 +16,7 @@ export type BusinessRow = {
   slug: string;
   category: BusinessCategory | null;
   active: boolean;
+  plan: string | null;
 };
 
 async function createServiceClient() {
@@ -46,7 +47,7 @@ export async function getAdminBusinesses(): Promise<BusinessRow[]> {
   const supabase = await createServiceClient();
   const { data, error } = await supabase
     .from('businesses')
-    .select('id, name, slug, category, active')
+    .select('id, name, slug, category, active, plan')
     .order('name');
   if (error) throw new Error(error.message);
   return (data ?? []) as BusinessRow[];

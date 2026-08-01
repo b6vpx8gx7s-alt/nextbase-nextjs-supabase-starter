@@ -1,15 +1,16 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
 import { toast } from 'sonner';
 import { updateBusinessCategoryAction, type BusinessCategory, type BusinessRow } from '@/data/admin/businesses';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import {
   Select,
   SelectContent,
@@ -18,7 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Building2 } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 const CATEGORY_LABELS: Record<BusinessCategory, string> = {
   tatuaje: 'Tatuaje',
@@ -30,7 +31,7 @@ const CATEGORY_LABELS: Record<BusinessCategory, string> = {
 
 const CATEGORY_OPTIONS: BusinessCategory[] = ['tatuaje', 'barberia', 'spa', 'nutricion', 'otro'];
 
-function BusinessCategoryRow({ business }: { business: BusinessRow }) {
+function CategoryCell({ business }: { business: BusinessRow }) {
   const [isPending, startTransition] = useTransition();
 
   function handleChange(category: string) {
@@ -48,40 +49,28 @@ function BusinessCategoryRow({ business }: { business: BusinessRow }) {
   }
 
   return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
-      <div className="flex items-center gap-3 min-w-0">
-        <Building2 className="size-4 shrink-0 text-muted-foreground" />
-        <div className="min-w-0">
-          <p className="truncate font-medium text-sm">{business.name}</p>
-          <p className="truncate text-xs text-muted-foreground">/{business.slug}</p>
-        </div>
-        {!business.active && (
-          <Badge variant="secondary" className="shrink-0">Inactivo</Badge>
-        )}
-      </div>
-      <Select
-        defaultValue={business.category ?? undefined}
-        onValueChange={handleChange}
-        disabled={isPending}
-      >
-        <SelectTrigger className="w-36 shrink-0">
-          <SelectValue placeholder="Sin categoría" />
-        </SelectTrigger>
-        <SelectContent>
-          {CATEGORY_OPTIONS.map((cat) => (
-            <SelectItem key={cat} value={cat}>
-              {CATEGORY_LABELS[cat]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <Select
+      defaultValue={business.category ?? undefined}
+      onValueChange={handleChange}
+      disabled={isPending}
+    >
+      <SelectTrigger className="w-36 h-8 text-xs">
+        <SelectValue placeholder="Sin categoría" />
+      </SelectTrigger>
+      <SelectContent>
+        {CATEGORY_OPTIONS.map((cat) => (
+          <SelectItem key={cat} value={cat} className="text-xs">
+            {CATEGORY_LABELS[cat]}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
 export function AdminMasterClient({ businesses }: { businesses: BusinessRow[] }) {
   return (
-    <div className="flex flex-1 flex-col gap-6 p-4 md:p-6 max-w-3xl">
+    <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
       <div>
         <h1 className="text-2xl font-bold">Admin Master</h1>
         <p className="text-muted-foreground text-sm mt-1">
@@ -91,21 +80,55 @@ export function AdminMasterClient({ businesses }: { businesses: BusinessRow[] })
 
       <Card>
         <CardHeader>
-          <CardTitle>Categoría del negocio</CardTitle>
+          <CardTitle>Negocios</CardTitle>
           <CardDescription>
-            Asigna la categoría de cada negocio para personalizar su experiencia.
+            Consulta y edita la categoría de cada negocio registrado.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          {businesses.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">
-              No hay negocios registrados.
-            </p>
-          ) : (
-            businesses.map((b) => (
-              <BusinessCategoryRow key={b.id} business={b} />
-            ))
-          )}
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Negocio</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Categoría</TableHead>
+                  <TableHead>Plan</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {businesses.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                      No hay negocios registrados.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  businesses.map((b) => (
+                    <TableRow key={b.id}>
+                      <TableCell>
+                        <p className="font-medium text-sm">{b.name}</p>
+                        <p className="text-xs text-muted-foreground">/{b.slug}</p>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={b.active ? 'default' : 'secondary'}>
+                          {b.active ? 'Activo' : 'Inactivo'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <CategoryCell business={b} />
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="capitalize">
+                          {b.plan ?? '—'}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

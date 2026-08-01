@@ -22,14 +22,18 @@ async function SidebarHeaderContent() {
     <SidebarMenu>
       <SidebarMenuItem>
         <SidebarMenuButton size="lg" asChild>
-          <Link href="/">
-            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Home className="size-4" />
+          <Link href="/nutrition">
+            <div className="flex aspect-square size-8 items-center justify-center rounded-lg" style={{ background: '#3DD9B0' }}>
+              <span style={{ fontFamily: 'Sora, sans-serif', fontWeight: 800, fontSize: '0.65rem', color: '#0F2730', letterSpacing: '-0.02em' }}>
+                RODA
+              </span>
             </div>
             <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-semibold">Nextbase</span>
-              <span className="truncate text-xs text-muted-foreground">
-                Open Source
+              <span className="truncate font-bold" style={{ fontFamily: 'Sora, sans-serif', letterSpacing: '-0.02em' }}>
+                RODA<span style={{ color: '#3DD9B0' }}>.</span>ink
+              </span>
+              <span className="truncate text-xs" style={{ color: 'oklch(0.87 0 0 / 55%)' }}>
+                Planes Nutricionales
               </span>
             </div>
           </Link>

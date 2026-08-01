@@ -12,7 +12,7 @@ import {
 import { SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarRail } from "@/components/ui/sidebar";
 import { signOutAction } from "@/data/auth/sign-out";
 import { User } from "@supabase/supabase-js";
-import { ChevronUp, Home, Lock, LogOut, Settings, Salad } from "lucide-react";
+import { ChevronUp, Home, LogOut, Settings, Salad } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTransition } from "react";
@@ -24,14 +24,8 @@ const navigationItems: { title: string; url: string; icon: React.ElementType; ex
   },
   {
     title: 'Planes Nutricionales',
-    url: 'https://nutrition.roda.ink/nutrition',
+    url: '/nutrition',
     icon: Salad,
-    external: true,
-  },
-  {
-    title: 'Private Items',
-    url: '/private-items',
-    icon: Lock,
   },
 ];
 
@@ -57,11 +51,11 @@ export function AppSidebarContent({ user }: { user: User }) {
     .slice(0, 2);
   return <><SidebarContent>
     <SidebarGroup>
-      <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+      <SidebarGroupLabel>Menú</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
           {navigationItems.map((item) => {
-            const isActive = !item.external && pathname === item.url;
+            const isActive = !item.external && pathname.startsWith(item.url) && (item.url !== '/dashboard' || pathname === item.url);
             const Icon = item.icon;
             return (
               <SidebarMenuItem key={item.title}>
