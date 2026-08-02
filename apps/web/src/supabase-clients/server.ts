@@ -2,6 +2,8 @@ import { Database } from '@/lib/database.types';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
+const cookieDomain = process.env.NODE_ENV === 'production' ? '.roda.ink' : undefined;
+
 export const createSupabaseClient = async () => {
   const cookieStore = await cookies();
 
@@ -16,12 +18,10 @@ export const createSupabaseClient = async () => {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, { ...options, ...(cookieDomain ? { domain: cookieDomain } : {}) })
             );
           } catch {
-            // The `setAll` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
+            // Called from a Server Component — middleware handles refresh.
           }
         },
       },

@@ -8,6 +8,8 @@ export type UserContext = {
   role: 'owner' | 'employee'
 }
 
+const cookieDomain = process.env.NODE_ENV === 'production' ? '.roda.ink' : undefined
+
 export async function createNutritionClient() {
   const cookieStore = await cookies()
   return createServerClient(
@@ -16,7 +18,11 @@ export async function createNutritionClient() {
     {
       cookies: {
         getAll() { return cookieStore.getAll() },
-        setAll(s) { s.forEach(({ name, value, options }) => cookieStore.set(name, value, options)) },
+        setAll(s) {
+          s.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, { ...options, ...(cookieDomain ? { domain: cookieDomain } : {}) })
+          )
+        },
       },
     }
   )
