@@ -37,7 +37,7 @@ export async function updateSession(request: NextRequest) {
   // to diagnose.
 
   const protectedPages = [
-    '/dashboard',
+    '/nutrition',
     '/private-item',
     '/private-items',
     '/items',

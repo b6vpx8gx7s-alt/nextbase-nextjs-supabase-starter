@@ -1,9 +1,5 @@
-import { CreatePrivateItemForm } from '../ClientPage';
+import { redirect } from 'next/navigation';
 
 export default function NewPrivateItemPage() {
-  return (
-    <div className="flex flex-1 flex-col gap-4 p-4 md:p-6 max-w-2xl">
-      <CreatePrivateItemForm />
-    </div>
-  );
+  redirect('/nutrition');
 }

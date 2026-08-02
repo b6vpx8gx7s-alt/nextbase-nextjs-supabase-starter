@@ -36,7 +36,7 @@ export async function GET(request: Request) {
 
   revalidatePath('/', 'layout');
 
-  let redirectTo = new URL('/dashboard', requestUrl.origin);
+  let redirectTo = new URL('/nutrition', requestUrl.origin);
 
   if (next) {
     const decodedNext = decodeURIComponent(next);

@@ -13,7 +13,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const routeLabels: Record<string, string> = {
-    dashboard: 'Dashboard',
+    nutrition: 'Planes Nutricionales',
     'private-items': 'Private Items',
     'private-item': 'Private Item',
     item: 'Item',
@@ -41,7 +41,7 @@ export function DynamicBreadcrumb() {
             <BreadcrumbList>
                 <BreadcrumbItem>
                     <BreadcrumbLink asChild>
-                        <Link href="/dashboard" className="flex items-center gap-1">
+                        <Link href="/nutrition" className="flex items-center gap-1">
                             <Home className="h-3.5 w-3.5" />
                             <span>Home</span>
                         </Link>
