@@ -11,33 +11,52 @@ export type UserContext = {
 const cookieDomain = process.env.NODE_ENV === 'production' ? '.roda.ink' : undefined;
 
 export async function createFisioClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+  if (!url || !key) {
+    const missing = [!url && 'NEXT_PUBLIC_SUPABASE_URL', !key && 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY']
+      .filter(Boolean)
+      .join(', ');
+    throw new Error(`[fisio/_helpers] Missing env vars: ${missing}`);
+  }
+
   const cookieStore = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(s) {
-          s.forEach(({ name, value, options }) =>
+
+  return createServerClient(url, key, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
             cookieStore.set(name, value, {
               ...options,
               ...(cookieDomain ? { domain: cookieDomain } : {}),
             })
           );
-        },
+        } catch {
+          // In Server Components cookies are read-only; middleware handles refresh.
+        }
       },
-    }
-  );
+    },
+  });
 }
 
 export async function getClientAndContext() {
   const supabase = await createFisioClient();
+
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
+
+  if (authError) {
+    console.error('[fisio/_helpers] auth.getUser error:', authError.message);
+    return { supabase, ctx: null } as const;
+  }
+
   if (!user) return { supabase, ctx: null } as const;
 
   const [profileRes, employeeRes] = await Promise.all([
@@ -45,7 +64,14 @@ export async function getClientAndContext() {
     supabase.from('employee_auth').select('employee_id').eq('user_id', user.id).maybeSingle(),
   ]);
 
-  if (!profileRes.data?.business_id) return { supabase, ctx: null } as const;
+  if (profileRes.error) {
+    console.error('[fisio/_helpers] profiles query error:', profileRes.error.message, profileRes.error.code);
+  }
+
+  if (!profileRes.data?.business_id) {
+    console.error('[fisio/_helpers] No business_id for user:', user.id);
+    return { supabase, ctx: null } as const;
+  }
 
   const employeeId: string | null = employeeRes.data?.employee_id ?? null;
   const ctx: UserContext = {
