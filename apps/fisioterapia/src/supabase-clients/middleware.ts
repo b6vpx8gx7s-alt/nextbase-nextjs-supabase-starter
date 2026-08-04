@@ -30,9 +30,13 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
+  console.log('[middleware] Cookies recibidos:', request.cookies.getAll().map(c => c.name));
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  console.log('[middleware] Session user:', user?.id ?? 'NULL');
 
   const pathname = request.nextUrl.pathname;
   const isProtected = pathname.startsWith('/dashboard') || pathname.startsWith('/pacientes');
