@@ -1,8 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const cookieDomain = process.env.NODE_ENV === 'production' ? '.roda.ink' : undefined;
-
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -22,7 +20,7 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, {
               ...options,
-              ...(cookieDomain ? { domain: cookieDomain } : {}),
+              domain: '.roda.ink',
             })
           );
         },
