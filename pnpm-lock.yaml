@@ -105,9 +105,6 @@ importers:
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
-      tailwindcss-animate:
-        specifier: ^1.0.7
-        version: 1.0.7(tailwindcss@4.3.0)
     devDependencies:
       '@nextbase/typescript-config':
         specifier: workspace:*
