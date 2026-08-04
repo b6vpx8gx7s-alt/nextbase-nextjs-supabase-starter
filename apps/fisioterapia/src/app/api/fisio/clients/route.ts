@@ -2,15 +2,23 @@ import { NextResponse } from 'next/server';
 import { getClientAndContext } from '../_helpers';
 
 export async function GET() {
+  console.log('[GET /api/fisio/clients] ── START ──');
   try {
+    console.log('[GET /api/fisio/clients] Calling getClientAndContext...');
     const { supabase, ctx } = await getClientAndContext();
+    console.log('[GET /api/fisio/clients] Auth user:', ctx?.userId ?? 'NULL');
+    console.log('[GET /api/fisio/clients] Business ID:', ctx?.businessId ?? 'NULL');
+
     if (!ctx) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
 
+    console.log('[GET /api/fisio/clients] Antes de query physio_clients');
     const { data, error } = await supabase
       .from('physio_clients')
       .select('*')
       .eq('business_id', ctx.businessId)
       .order('created_at', { ascending: false });
+
+    console.log('[GET /api/fisio/clients] Query result — error:', error?.message ?? 'none', '| rows:', data?.length ?? 'null');
 
     if (error) {
       console.error('[GET /api/fisio/clients] Supabase error:', error.message, error.code, error.hint);
