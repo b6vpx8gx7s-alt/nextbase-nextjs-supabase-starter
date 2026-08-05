@@ -28,13 +28,26 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  console.log('[middleware] Cookies recibidos:', request.cookies.getAll().map(c => c.name));
+  const allCookies = request.cookies.getAll()
+  console.log('[middleware] Cookies recibidos:', allCookies.map(c => c.name));
+  console.log('[middleware] SUPABASE_URL defined:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
+  console.log('[middleware] PUBLISHABLE_KEY defined:', !!process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
+
+  // Log first 60 chars of cookie value to check encoding format
+  const sessionCookie = allCookies.find(c => c.name.includes('auth-token'))
+  if (sessionCookie) {
+    console.log('[middleware] Cookie value prefix:', sessionCookie.value.substring(0, 60))
+  }
 
   const {
     data: { user },
+    error: getUserError,
   } = await supabase.auth.getUser();
 
   console.log('[middleware] Session user:', user?.id ?? 'NULL');
+  if (getUserError) {
+    console.log('[middleware] getUser error:', getUserError.message, getUserError.status);
+  }
 
   const pathname = request.nextUrl.pathname;
   const isProtected = pathname.startsWith('/dashboard') || pathname.startsWith('/pacientes');
