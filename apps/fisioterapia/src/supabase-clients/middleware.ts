@@ -40,10 +40,13 @@ export async function updateSession(request: NextRequest) {
   const isProtected = pathname.startsWith('/dashboard') || pathname.startsWith('/pacientes');
 
   if (!user && isProtected) {
-    const loginUrl = process.env.NODE_ENV === 'production'
-      ? 'https://roda.ink/login'
-      : '/login';
-    return NextResponse.redirect(loginUrl);
+    if (process.env.NODE_ENV === 'production') {
+      // Pass the exact fisioterapia URL so roda.ink/auth/callback redirects back here
+      const next = encodeURIComponent(request.nextUrl.href);
+      console.log('[middleware] Redirecting to roda.ink/login with next:', request.nextUrl.href);
+      return NextResponse.redirect(`https://roda.ink/login?next=${next}`);
+    }
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
   return supabaseResponse;
