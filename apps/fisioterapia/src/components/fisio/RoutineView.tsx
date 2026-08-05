@@ -47,6 +47,17 @@ function DayCard({ dia }: { dia: DraftDia }) {
 }
 
 export function RoutineView({ routine }: { routine: PhysioRoutine }) {
+  if (!routine.routine_data?.dias) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+        <AlertCircle className="h-8 w-8 text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">
+          Esta rutina no tiene datos de ejercicios. Genera un nuevo plan.
+        </p>
+      </div>
+    );
+  }
+
   const { dias, notas_generales } = routine.routine_data;
 
   return (
