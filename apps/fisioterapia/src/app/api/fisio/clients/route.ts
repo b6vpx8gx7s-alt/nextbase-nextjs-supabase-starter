@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getClientAndContext } from '../_helpers';
+import { getClientAndContext, createFisioAdminClient } from '../_helpers';
 
 export async function GET() {
   console.log('[GET /api/fisio/clients] ── START ──');
@@ -37,8 +37,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { supabase, ctx } = await getClientAndContext();
+    const { ctx } = await getClientAndContext();
     if (!ctx) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    const supabase = createFisioAdminClient();
 
     const body = await request.json();
     const {

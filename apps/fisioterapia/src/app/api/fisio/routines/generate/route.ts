@@ -1,14 +1,15 @@
 import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { getClientAndContext } from '../../_helpers';
+import { getClientAndContext, createFisioAdminClient } from '../../_helpers';
 import { getSafeExercises, postValidate, parseReps } from '@/lib/rutina/safety';
 import { buildPrompt } from '@/lib/rutina/prompt';
 import type { DraftDia } from '@/lib/fisio-types';
 
 export async function POST(request: Request) {
   try {
-    const { supabase, ctx } = await getClientAndContext();
+    const { ctx } = await getClientAndContext();
     if (!ctx) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    const supabase = createFisioAdminClient();
 
     const { client_id } = await request.json();
     if (!client_id) return NextResponse.json({ error: 'client_id requerido' }, { status: 400 });

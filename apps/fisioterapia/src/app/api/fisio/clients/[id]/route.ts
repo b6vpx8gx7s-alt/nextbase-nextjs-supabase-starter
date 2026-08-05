@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
-import { getClientAndContext } from '../../_helpers';
+import { getClientAndContext, createFisioAdminClient } from '../../_helpers';
 
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_req: Request, { params }: Params) {
   try {
     const { id } = await params;
-    const { supabase, ctx } = await getClientAndContext();
+    const { ctx } = await getClientAndContext();
     if (!ctx) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    const supabase = createFisioAdminClient();
 
     const [clientRes, pathRes, painRes, routineRes] = await Promise.all([
       supabase
@@ -71,8 +72,9 @@ export async function GET(_req: Request, { params }: Params) {
 export async function PATCH(request: Request, { params }: Params) {
   try {
     const { id } = await params;
-    const { supabase, ctx } = await getClientAndContext();
+    const { ctx } = await getClientAndContext();
     if (!ctx) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    const supabase = createFisioAdminClient();
 
     const body = await request.json();
     const allowed = ['nombre', 'email', 'telefono', 'fecha_nacimiento', 'nivel_fisico', 'objetivo', 'dias_disponibles', 'notas'];
@@ -105,8 +107,9 @@ export async function PATCH(request: Request, { params }: Params) {
 export async function DELETE(_req: Request, { params }: Params) {
   try {
     const { id } = await params;
-    const { supabase, ctx } = await getClientAndContext();
+    const { ctx } = await getClientAndContext();
     if (!ctx) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    const supabase = createFisioAdminClient();
 
     const { error } = await supabase
       .from('physio_clients')
