@@ -6,5 +6,5 @@ export default function LoginPage() {
       ? 'https://fisioterapia.roda.ink'
       : 'http://localhost:3001';
 
-  redirect(`https://roda.ink/login?returnUrl=${encodeURIComponent(returnUrl)}`);
+  redirect(`https://roda.ink/login?next=${encodeURIComponent(returnUrl)}`);
 }
