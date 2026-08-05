@@ -11,7 +11,7 @@ async function AuthGuard({ children }: { children: ReactNode }) {
 
   if (!user) {
     const loginUrl =
-      process.env.NODE_ENV === 'production' ? 'https://roda.ink/login' : '/login';
+      process.env.NODE_ENV === 'production' ? 'https://www.roda.ink/login' : '/login';
     redirect(loginUrl);
   }
 
