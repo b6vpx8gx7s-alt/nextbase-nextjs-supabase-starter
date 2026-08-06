@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { X, ChevronDown, ChevronRight, Pencil, Plus } from 'lucide-react';
+import { X, ChevronDown, ChevronRight, Pencil, Plus, Dumbbell } from 'lucide-react';
 import type { PhysioRoutine, ExerciseWithFlags, DraftDia, DraftEjercicio } from '@/lib/fisio-types';
 import toast from 'react-hot-toast';
 
@@ -147,6 +147,7 @@ export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreate
         return {
           exercise_id: exId,
           nombre: ex.nombre,
+          gif_url: ex.gif_url ?? null,
           series: params.series,
           repeticiones: params.repeticiones || '10',
           descanso_seg: 60,
@@ -331,6 +332,13 @@ export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreate
                                       onChange={() => toggleExercise(activeDayIdx, ex)}
                                       className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
                                     />
+                                    <div className="h-8 w-8 shrink-0 rounded overflow-hidden bg-muted flex items-center justify-center">
+                                      {ex.gif_url ? (
+                                        <img src={ex.gif_url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                                      ) : (
+                                        <Dumbbell className="h-4 w-4 text-muted-foreground" />
+                                      )}
+                                    </div>
                                     <div className="min-w-0 flex-1">
                                       <div className="flex flex-wrap items-center gap-1.5">
                                         <span className="text-sm font-medium">{ex.nombre}</span>

@@ -37,6 +37,7 @@ export interface SafeExercise {
   nivel: string;
   equipo: string;
   descripcion_breve: string;
+  gif_url?: string | null;
   caution_notes: string[];
 }
 
@@ -51,6 +52,7 @@ export interface DraftEjercicio {
   repeticiones: string;
   descanso_seg: number;
   nota?: string;
+  gif_url?: string | null;
 }
 
 export interface DraftDia {

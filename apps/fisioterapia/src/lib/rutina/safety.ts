@@ -42,7 +42,7 @@ export async function getSafeExercises(
 
   const { data: exercises, error } = await supabase
     .from('exercises')
-    .select('id, nombre, patron, grupo_muscular, nivel, equipo, descripcion_breve, exercise_restrictions(zona_corporal, severidad, motivo)');
+    .select('id, nombre, patron, grupo_muscular, nivel, equipo, descripcion_breve, gif_url, exercise_restrictions(zona_corporal, severidad, motivo)');
 
   if (error || !exercises) throw new Error('Error fetching exercises: ' + error?.message);
 
@@ -70,6 +70,7 @@ export async function getSafeExercises(
       nivel: (ex as { nivel: string }).nivel ?? '',
       equipo: (ex as { equipo: string }).equipo ?? '',
       descripcion_breve: (ex as { descripcion_breve: string }).descripcion_breve ?? '',
+      gif_url: (ex as { gif_url?: string | null }).gif_url ?? null,
       caution_notes,
     });
   }
@@ -134,6 +135,7 @@ export async function getAllExercisesWithFlags(
       nivel: (ex as { nivel: string }).nivel ?? '',
       equipo: (ex as { equipo: string }).equipo ?? '',
       descripcion_breve: (ex as { descripcion_breve: string }).descripcion_breve ?? '',
+      gif_url: (ex as { gif_url?: string | null }).gif_url ?? null,
       forbidden,
       caution_notes,
     };

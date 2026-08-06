@@ -23,7 +23,13 @@ function DayCard({ dia }: { dia: DraftDia }) {
           <div key={i} className="rounded-md border p-3 space-y-1.5">
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Dumbbell className="h-4 w-4 shrink-0 text-primary mt-0.5" />
+                <div className="h-10 w-10 shrink-0 rounded overflow-hidden bg-muted flex items-center justify-center">
+                  {ej.gif_url ? (
+                    <img src={ej.gif_url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                  ) : (
+                    <Dumbbell className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </div>
                 <span className="text-sm font-medium">{ej.nombre}</span>
               </div>
               <Badge variant="secondary" className="shrink-0 text-xs">
