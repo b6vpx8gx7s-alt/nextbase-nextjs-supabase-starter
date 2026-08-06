@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { X, ChevronDown, ChevronRight, Pencil, Plus } from 'lucide-react';
 import { ExerciseThumb } from '@/components/fisio/ExerciseThumb';
@@ -34,6 +34,9 @@ export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreate
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [customDraft, setCustomDraft] = useState({ nombre: '', grupo_muscular: 'core', descripcion_breve: '', gif_url: '' });
   const [savingCustom, setSavingCustom] = useState(false);
+  const [uploadingGif, setUploadingGif] = useState(false);
+  const [gifPreviewUrl, setGifPreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const openModal = useCallback(async () => {
     setStep(1);
@@ -105,6 +108,44 @@ export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreate
   const toggleGroup = (group: string) =>
     setExpandedGroups((prev) => ({ ...prev, [group]: !prev[group] }));
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { toast.error('Solo se aceptan imágenes o GIFs'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error('El archivo no puede superar 5 MB'); return; }
+
+    const localUrl = URL.createObjectURL(file);
+    setGifPreviewUrl(localUrl);
+    setUploadingGif(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/fisio/exercises/upload', { method: 'POST', body: fd });
+      if (!res.ok) {
+        const { error } = await res.json();
+        throw new Error(error ?? 'Error al subir imagen');
+      }
+      const { url } = await res.json();
+      setCustomDraft((d) => ({ ...d, gif_url: url }));
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al subir imagen');
+      URL.revokeObjectURL(localUrl);
+      setGifPreviewUrl(null);
+      setCustomDraft((d) => ({ ...d, gif_url: '' }));
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } finally {
+      setUploadingGif(false);
+    }
+  };
+
+  const cancelCustomForm = () => {
+    if (gifPreviewUrl) URL.revokeObjectURL(gifPreviewUrl);
+    setGifPreviewUrl(null);
+    setShowCustomForm(false);
+    setCustomDraft({ nombre: '', grupo_muscular: 'core', descripcion_breve: '', gif_url: '' });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handleAddCustom = async () => {
     if (!customDraft.nombre.trim()) { toast.error('El nombre es requerido'); return; }
     setSavingCustom(true);
@@ -130,6 +171,9 @@ export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreate
           [exercise.id]: { series: 3, repeticiones: '10-12', notas: '' },
         },
       }));
+      if (gifPreviewUrl) URL.revokeObjectURL(gifPreviewUrl);
+      setGifPreviewUrl(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       setCustomDraft({ nombre: '', grupo_muscular: 'core', descripcion_breve: '', gif_url: '' });
       setShowCustomForm(false);
       toast.success(`"${exercise.nombre}" agregado`);
@@ -466,27 +510,52 @@ export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreate
                         </div>
                         <div>
                           <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
-                            URL de imagen o GIF (opcional)
+                            Imagen o GIF (opcional)
                           </label>
-                          <input
-                            type="url"
-                            value={customDraft.gif_url}
-                            onChange={(e) => setCustomDraft((d) => ({ ...d, gif_url: e.target.value }))}
-                            placeholder="https://…"
-                            className="w-full rounded border px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                          />
+                          {gifPreviewUrl ? (
+                            <div className="flex items-center gap-3 rounded-md border px-3 py-2">
+                              <ExerciseThumb gif_url={gifPreviewUrl} className="h-10 w-10 shrink-0" />
+                              <span className="flex-1 text-xs text-muted-foreground">
+                                {uploadingGif ? 'Subiendo…' : 'Lista'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  URL.revokeObjectURL(gifPreviewUrl);
+                                  setGifPreviewUrl(null);
+                                  setCustomDraft((d) => ({ ...d, gif_url: '' }));
+                                  if (fileInputRef.current) fileInputRef.current.value = '';
+                                }}
+                                className="text-muted-foreground hover:text-foreground"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-primary">
+                              <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/gif,image/*"
+                                className="sr-only"
+                                onChange={handleFileSelect}
+                                disabled={uploadingGif}
+                              />
+                              <span>Seleccionar archivo…</span>
+                            </label>
+                          )}
                         </div>
                       </div>
                       <div className="flex gap-2 justify-end">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => { setShowCustomForm(false); setCustomDraft({ nombre: '', grupo_muscular: 'core', descripcion_breve: '', gif_url: '' }); }}
-                          disabled={savingCustom}
+                          onClick={cancelCustomForm}
+                          disabled={savingCustom || uploadingGif}
                         >
                           Cancelar
                         </Button>
-                        <Button size="sm" onClick={handleAddCustom} disabled={savingCustom}>
+                        <Button size="sm" onClick={handleAddCustom} disabled={savingCustom || uploadingGif}>
                           {savingCustom ? 'Guardando…' : 'Agregar'}
                         </Button>
                       </div>
