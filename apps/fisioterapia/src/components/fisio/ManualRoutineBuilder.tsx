@@ -2,11 +2,12 @@
 
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { X, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
+import { X, ChevronDown, ChevronRight, Pencil, Plus } from 'lucide-react';
 import type { PhysioRoutine, ExerciseWithFlags, DraftDia, DraftEjercicio } from '@/lib/fisio-types';
 import toast from 'react-hot-toast';
 
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+const MUSCLE_GROUPS = ['pecho', 'hombros', 'espalda', 'piernas', 'gluteos', 'core', 'cardio', 'movilidad'];
 const SHORT_DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
 interface Props {
@@ -29,6 +30,9 @@ export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreate
   const [dayMap, setDayMap] = useState<DayMap>({});
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [customDraft, setCustomDraft] = useState({ nombre: '', grupo_muscular: 'core', descripcion_breve: '' });
+  const [savingCustom, setSavingCustom] = useState(false);
 
   const openModal = useCallback(async () => {
     setStep(1);
@@ -99,6 +103,41 @@ export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreate
 
   const toggleGroup = (group: string) =>
     setExpandedGroups((prev) => ({ ...prev, [group]: !prev[group] }));
+
+  const handleAddCustom = async () => {
+    if (!customDraft.nombre.trim()) { toast.error('El nombre es requerido'); return; }
+    setSavingCustom(true);
+    try {
+      const res = await fetch('/api/fisio/exercises/custom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(customDraft),
+      });
+      if (!res.ok) {
+        const { error } = await res.json();
+        throw new Error(error ?? 'Error al crear ejercicio');
+      }
+      const { exercise } = await res.json();
+      const newEx: ExerciseWithFlags = { ...exercise, forbidden: false, caution_notes: [] };
+      setExercises((prev) => [...prev, newEx]);
+      setExpandedGroups((prev) => ({ ...prev, [exercise.grupo_muscular]: true }));
+      // Auto-select for active day
+      setDayMap((prev) => ({
+        ...prev,
+        [activeDayIdx]: {
+          ...(prev[activeDayIdx] ?? {}),
+          [exercise.id]: { series: 3, repeticiones: '10-12', notas: '' },
+        },
+      }));
+      setCustomDraft({ nombre: '', grupo_muscular: 'core', descripcion_breve: '' });
+      setShowCustomForm(false);
+      toast.success(`"${exercise.nombre}" agregado`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error inesperado');
+    } finally {
+      setSavingCustom(false);
+    }
+  };
 
   const handleSubmit = async () => {
     const dias: DraftDia[] = selectedDays.map((dayIdx, i) => {
@@ -368,6 +407,75 @@ export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreate
                         )}
                       </div>
                     ))
+                  )}
+
+                  {/* Custom exercise button + inline form */}
+                  {!showCustomForm ? (
+                    <button
+                      onClick={() => setShowCustomForm(true)}
+                      className="flex w-full items-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-primary mt-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Agregar ejercicio personalizado
+                    </button>
+                  ) : (
+                    <div className="mt-2 rounded-md border bg-muted/30 p-4 space-y-3">
+                      <p className="text-sm font-medium">Nuevo ejercicio personalizado</p>
+                      <div className="space-y-2">
+                        <div>
+                          <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                            Nombre *
+                          </label>
+                          <input
+                            type="text"
+                            value={customDraft.nombre}
+                            onChange={(e) => setCustomDraft((d) => ({ ...d, nombre: e.target.value }))}
+                            placeholder="Ej: Extensión de rodilla con banda"
+                            className="w-full rounded border px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                            autoFocus
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                            Grupo muscular *
+                          </label>
+                          <select
+                            value={customDraft.grupo_muscular}
+                            onChange={(e) => setCustomDraft((d) => ({ ...d, grupo_muscular: e.target.value }))}
+                            className="w-full rounded border px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary capitalize"
+                          >
+                            {MUSCLE_GROUPS.map((g) => (
+                              <option key={g} value={g}>{g}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                            Descripción breve (opcional)
+                          </label>
+                          <input
+                            type="text"
+                            value={customDraft.descripcion_breve}
+                            onChange={(e) => setCustomDraft((d) => ({ ...d, descripcion_breve: e.target.value }))}
+                            placeholder="Ej: Con banda elástica, rango parcial"
+                            className="w-full rounded border px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => { setShowCustomForm(false); setCustomDraft({ nombre: '', grupo_muscular: 'core', descripcion_breve: '' }); }}
+                          disabled={savingCustom}
+                        >
+                          Cancelar
+                        </Button>
+                        <Button size="sm" onClick={handleAddCustom} disabled={savingCustom}>
+                          {savingCustom ? 'Guardando…' : 'Agregar'}
+                        </Button>
+                      </div>
+                    </div>
                   )}
                 </div>
 
