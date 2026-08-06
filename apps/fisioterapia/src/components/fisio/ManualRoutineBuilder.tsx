@@ -32,7 +32,7 @@ export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreate
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
   const [showCustomForm, setShowCustomForm] = useState(false);
-  const [customDraft, setCustomDraft] = useState({ nombre: '', grupo_muscular: 'core', descripcion_breve: '' });
+  const [customDraft, setCustomDraft] = useState({ nombre: '', grupo_muscular: 'core', descripcion_breve: '', gif_url: '' });
   const [savingCustom, setSavingCustom] = useState(false);
 
   const openModal = useCallback(async () => {
@@ -130,7 +130,7 @@ export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreate
           [exercise.id]: { series: 3, repeticiones: '10-12', notas: '' },
         },
       }));
-      setCustomDraft({ nombre: '', grupo_muscular: 'core', descripcion_breve: '' });
+      setCustomDraft({ nombre: '', grupo_muscular: 'core', descripcion_breve: '', gif_url: '' });
       setShowCustomForm(false);
       toast.success(`"${exercise.nombre}" agregado`);
     } catch (err) {
@@ -464,12 +464,24 @@ export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreate
                             className="w-full rounded border px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
                           />
                         </div>
+                        <div>
+                          <label className="mb-1 block text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                            URL de imagen o GIF (opcional)
+                          </label>
+                          <input
+                            type="url"
+                            value={customDraft.gif_url}
+                            onChange={(e) => setCustomDraft((d) => ({ ...d, gif_url: e.target.value }))}
+                            placeholder="https://…"
+                            className="w-full rounded border px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
                       </div>
                       <div className="flex gap-2 justify-end">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => { setShowCustomForm(false); setCustomDraft({ nombre: '', grupo_muscular: 'core', descripcion_breve: '' }); }}
+                          onClick={() => { setShowCustomForm(false); setCustomDraft({ nombre: '', grupo_muscular: 'core', descripcion_breve: '', gif_url: '' }); }}
                           disabled={savingCustom}
                         >
                           Cancelar
