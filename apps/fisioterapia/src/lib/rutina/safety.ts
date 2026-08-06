@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { SafeExercise, DraftDia } from '@/lib/fisio-types';
+import type { SafeExercise, ExerciseWithFlags, DraftDia } from '@/lib/fisio-types';
 
 export type { SafeExercise, DraftDia };
 
@@ -75,6 +75,69 @@ export async function getSafeExercises(
   }
 
   return safe;
+}
+
+/**
+ * Returns ALL exercises (including forbidden ones) with per-patient
+ * restriction flags so the manual builder can show 🚫/⚠️ badges.
+ */
+export async function getAllExercisesWithFlags(
+  clientId: string,
+  supabase: SupabaseClient
+): Promise<ExerciseWithFlags[]> {
+  const [pathResult, painResult] = await Promise.all([
+    supabase.from('pathologies').select('zona_corporal').eq('client_id', clientId),
+    supabase.from('pain_map').select('zona_corporal, nivel').eq('client_id', clientId).gte('nivel', 4),
+  ]);
+
+  const userZoneStrings = [
+    ...(pathResult.data ?? []).map((p: { zona_corporal: string }) => p.zona_corporal),
+    ...(painResult.data ?? []).map((p: { zona_corporal: string }) => p.zona_corporal),
+  ];
+
+  let userCanonicalZones: string[] = [];
+  if (userZoneStrings.length > 0) {
+    const { data: aliases } = await supabase
+      .from('zone_aliases')
+      .select('zona_canonica')
+      .in('zona_usuario', userZoneStrings);
+    userCanonicalZones = [
+      ...new Set((aliases ?? []).map((a: { zona_canonica: string }) => a.zona_canonica)),
+    ];
+  }
+
+  const { data: exercises, error } = await supabase
+    .from('exercises')
+    .select('id, nombre, patron, grupo_muscular, nivel, equipo, descripcion_breve, exercise_restrictions(zona_corporal, severidad, motivo)')
+    .order('grupo_muscular')
+    .order('nombre');
+
+  if (error || !exercises) throw new Error('Error fetching exercises: ' + error?.message);
+
+  return exercises.map((ex) => {
+    const restrictions: { zona_corporal: string; severidad: string; motivo: string }[] =
+      (ex as { exercise_restrictions?: { zona_corporal: string; severidad: string; motivo: string }[] }).exercise_restrictions ?? [];
+
+    const forbidden = restrictions.some(
+      (r) => r.severidad === 'forbidden' && userCanonicalZones.includes(r.zona_corporal)
+    );
+    const caution_notes = restrictions
+      .filter((r) => r.severidad === 'caution' && userCanonicalZones.includes(r.zona_corporal))
+      .map((r) => r.motivo)
+      .filter(Boolean);
+
+    return {
+      id: (ex as { id: string }).id,
+      nombre: (ex as { nombre: string }).nombre,
+      patron: (ex as { patron: string }).patron ?? '',
+      grupo_muscular: (ex as { grupo_muscular: string }).grupo_muscular ?? '',
+      nivel: (ex as { nivel: string }).nivel ?? '',
+      equipo: (ex as { equipo: string }).equipo ?? '',
+      descripcion_breve: (ex as { descripcion_breve: string }).descripcion_breve ?? '',
+      forbidden,
+      caution_notes,
+    };
+  });
 }
 
 /**

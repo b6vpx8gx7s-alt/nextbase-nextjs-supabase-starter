@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { GenerateRoutineButton } from '@/components/fisio/GenerateRoutineButton';
+import { ManualRoutineBuilder } from '@/components/fisio/ManualRoutineBuilder';
 import { RoutineView } from '@/components/fisio/RoutineView';
 import type { PhysioClient, Pathology, PainEntry, PhysioRoutine } from '@/lib/fisio-types';
 import { ChevronLeft, AlertTriangle, Activity, ClipboardList } from 'lucide-react';
@@ -182,15 +183,27 @@ export default function ClientDetailPage() {
                 <CardDescription>Sin plan generado aún</CardDescription>
               )}
             </div>
-            <GenerateRoutineButton
-              clientId={id}
-              onGenerated={(r) => {
-                setActiveRoutine(r);
-                setDetail((prev) =>
-                  prev ? { ...prev, routines: [r, ...prev.routines] } : prev
-                );
-              }}
-            />
+            <div className="flex gap-2 flex-wrap">
+              <ManualRoutineBuilder
+                clientId={id}
+                clientDiasDisponibles={client.dias_disponibles}
+                onCreated={(r) => {
+                  setActiveRoutine(r);
+                  setDetail((prev) =>
+                    prev ? { ...prev, routines: [r, ...prev.routines] } : prev
+                  );
+                }}
+              />
+              <GenerateRoutineButton
+                clientId={id}
+                onGenerated={(r) => {
+                  setActiveRoutine(r);
+                  setDetail((prev) =>
+                    prev ? { ...prev, routines: [r, ...prev.routines] } : prev
+                  );
+                }}
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent>

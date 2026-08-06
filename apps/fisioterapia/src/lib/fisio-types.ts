@@ -40,6 +40,10 @@ export interface SafeExercise {
   caution_notes: string[];
 }
 
+export interface ExerciseWithFlags extends SafeExercise {
+  forbidden: boolean;
+}
+
 export interface DraftEjercicio {
   exercise_id: string;
   nombre: string;
