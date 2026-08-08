@@ -184,6 +184,22 @@ export default function ClientDetailPage() {
               )}
             </div>
             <div className="flex gap-2 flex-wrap">
+              {activeRoutine && (
+                <ManualRoutineBuilder
+                  mode="edit"
+                  clientId={id}
+                  clientDiasDisponibles={client.dias_disponibles}
+                  existingRoutine={activeRoutine}
+                  onUpdated={(r) => {
+                    setActiveRoutine(r);
+                    setDetail((prev) =>
+                      prev
+                        ? { ...prev, routines: prev.routines.map((x) => (x.id === r.id ? r : x)) }
+                        : prev
+                    );
+                  }}
+                />
+              )}
               <ManualRoutineBuilder
                 clientId={id}
                 clientDiasDisponibles={client.dias_disponibles}

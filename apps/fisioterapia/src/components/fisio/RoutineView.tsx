@@ -1,7 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
-import { ExerciseThumb } from '@/components/fisio/ExerciseThumb';
+import { ExerciseLightbox } from '@/components/fisio/ExerciseLightbox';
 import type { PhysioRoutine, DraftDia } from '@/lib/fisio-types';
 
 const equipoLabel: Record<string, string> = {
@@ -24,7 +24,7 @@ function DayCard({ dia }: { dia: DraftDia }) {
           <div key={i} className="rounded-md border p-3 space-y-1.5">
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2">
-                <ExerciseThumb gif_url={ej.gif_url} />
+                <ExerciseLightbox gif_url={ej.gif_url} nombre={ej.nombre} />
                 <span className="text-sm font-medium">{ej.nombre}</span>
               </div>
               <Badge variant="secondary" className="shrink-0 text-xs">

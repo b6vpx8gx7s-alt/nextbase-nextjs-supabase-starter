@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { X, ChevronDown, ChevronRight, Pencil, Plus } from 'lucide-react';
+import { X, ChevronDown, ChevronRight, Pencil, Plus, Camera } from 'lucide-react';
 import { ExerciseThumb } from '@/components/fisio/ExerciseThumb';
 import type { PhysioRoutine, ExerciseWithFlags, DraftDia, DraftEjercicio } from '@/lib/fisio-types';
 import toast from 'react-hot-toast';
@@ -14,14 +14,24 @@ const SHORT_DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 interface Props {
   clientId: string;
   clientDiasDisponibles: number[];
-  onCreated: (routine: PhysioRoutine) => void;
+  onCreated?: (routine: PhysioRoutine) => void;
+  mode?: 'create' | 'edit';
+  existingRoutine?: PhysioRoutine;
+  onUpdated?: (routine: PhysioRoutine) => void;
 }
 
 type ExerciseParams = { series: number; repeticiones: string; notas: string };
 // dayIndex (0–6) → exerciseId → params
 type DayMap = Record<number, Record<string, ExerciseParams>>;
 
-export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreated }: Props) {
+export function ManualRoutineBuilder({
+  clientId,
+  clientDiasDisponibles,
+  onCreated,
+  mode = 'create',
+  existingRoutine,
+  onUpdated,
+}: Props) {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
   const [exercises, setExercises] = useState<ExerciseWithFlags[]>([]);
@@ -37,11 +47,35 @@ export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreate
   const [uploadingGif, setUploadingGif] = useState(false);
   const [gifPreviewUrl, setGifPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const replacingGifForRef = useRef<string | null>(null);
+  const replaceFileInputRef = useRef<HTMLInputElement>(null);
 
   const openModal = useCallback(async () => {
     setStep(1);
-    setSelectedDays([...clientDiasDisponibles].sort((a, b) => a - b));
-    setDayMap({});
+    if (mode === 'edit' && existingRoutine) {
+      const days = existingRoutine.routine_data.dias
+        .map((dia) => DAYS.indexOf(dia.nombre))
+        .filter((i) => i >= 0)
+        .sort((a, b) => a - b);
+      setSelectedDays(days);
+      const initialDayMap: DayMap = {};
+      existingRoutine.routine_data.dias.forEach((dia) => {
+        const dayIdx = DAYS.indexOf(dia.nombre);
+        if (dayIdx < 0) return;
+        initialDayMap[dayIdx] = {};
+        dia.ejercicios.forEach((ej) => {
+          initialDayMap[dayIdx][ej.exercise_id] = {
+            series: ej.series,
+            repeticiones: ej.repeticiones,
+            notas: ej.nota ?? '',
+          };
+        });
+      });
+      setDayMap(initialDayMap);
+    } else {
+      setSelectedDays([...clientDiasDisponibles].sort((a, b) => a - b));
+      setDayMap({});
+    }
     setActiveTab(0);
     setOpen(true);
 
@@ -63,7 +97,7 @@ export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreate
     } finally {
       setLoadingEx(false);
     }
-  }, [clientId, clientDiasDisponibles]);
+  }, [clientId, clientDiasDisponibles, mode, existingRoutine]);
 
   const toggleDay = (dayIdx: number) => {
     setSelectedDays((prev) => {
@@ -107,6 +141,37 @@ export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreate
 
   const toggleGroup = (group: string) =>
     setExpandedGroups((prev) => ({ ...prev, [group]: !prev[group] }));
+
+  const handleReplaceGif = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const exId = replacingGifForRef.current;
+    if (replaceFileInputRef.current) replaceFileInputRef.current.value = '';
+    replacingGifForRef.current = null;
+    if (!file || !exId) return;
+    if (!file.type.startsWith('image/')) { toast.error('Solo se aceptan imágenes'); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error('El archivo supera 5 MB'); return; }
+
+    const toastId = toast.loading('Actualizando imagen…');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const uploadRes = await fetch('/api/fisio/exercises/upload', { method: 'POST', body: fd });
+      if (!uploadRes.ok) { const { error } = await uploadRes.json(); throw new Error(error ?? 'Error al subir'); }
+      const { url } = await uploadRes.json();
+
+      const patchRes = await fetch(`/api/fisio/exercises/${exId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gif_url: url }),
+      });
+      if (!patchRes.ok) { const { error } = await patchRes.json(); throw new Error(error ?? 'Error al actualizar'); }
+
+      setExercises((prev) => prev.map((ex) => ex.id === exId ? { ...ex, gif_url: url } : ex));
+      toast.success('Imagen actualizada', { id: toastId });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error inesperado', { id: toastId });
+    }
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -210,19 +275,27 @@ export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreate
 
     setSubmitting(true);
     try {
-      const res = await fetch('/api/fisio/routines/manual', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_id: clientId, dias }),
-      });
+      const isEdit = mode === 'edit' && existingRoutine;
+      const res = await fetch(
+        isEdit ? `/api/fisio/routines/${existingRoutine!.id}` : '/api/fisio/routines/manual',
+        {
+          method: isEdit ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(isEdit ? { dias } : { client_id: clientId, dias }),
+        }
+      );
       if (!res.ok) {
         const { error } = await res.json();
-        throw new Error(error ?? 'Error al crear plan');
+        throw new Error(error ?? 'Error al guardar plan');
       }
       const { routine } = await res.json();
-      toast.success('Plan manual creado');
+      toast.success(isEdit ? 'Plan actualizado' : 'Plan manual creado');
       setOpen(false);
-      onCreated(routine);
+      if (isEdit) {
+        onUpdated?.(routine);
+      } else {
+        onCreated?.(routine);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error inesperado');
     } finally {
@@ -249,7 +322,7 @@ export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreate
     <>
       <Button variant="outline" onClick={openModal}>
         <Pencil className="h-4 w-4" />
-        Plan manual
+        {mode === 'edit' ? 'Editar plan' : 'Plan manual'}
       </Button>
 
       {open && (
@@ -315,6 +388,14 @@ export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreate
             {/* ── Step 2: Exercise builder ── */}
             {step === 2 && (
               <div>
+                {/* Hidden input for replacing an exercise's GIF */}
+                <input
+                  ref={replaceFileInputRef}
+                  type="file"
+                  accept="image/gif,image/*"
+                  className="sr-only"
+                  onChange={handleReplaceGif}
+                />
                 {/* Day tabs */}
                 <div className="flex overflow-x-auto border-b px-6 pt-3">
                   {selectedDays.map((dayIdx, i) => {
@@ -377,7 +458,24 @@ export function ManualRoutineBuilder({ clientId, clientDiasDisponibles, onCreate
                                       onChange={() => toggleExercise(activeDayIdx, ex)}
                                       className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
                                     />
-                                    <ExerciseThumb gif_url={ex.gif_url} className="h-8 w-8" />
+                                    <div className="relative shrink-0">
+                                      <ExerciseThumb gif_url={ex.gif_url} className="h-8 w-8" />
+                                      {ex.gif_url && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            replacingGifForRef.current = ex.id;
+                                            replaceFileInputRef.current?.click();
+                                          }}
+                                          className="absolute inset-0 flex items-center justify-center rounded bg-black/50 opacity-0 hover:opacity-100 transition-opacity"
+                                          title="Cambiar imagen"
+                                        >
+                                          <Camera className="h-3 w-3 text-white" />
+                                        </button>
+                                      )}
+                                    </div>
                                     <div className="min-w-0 flex-1">
                                       <div className="flex flex-wrap items-center gap-1.5">
                                         <span className="text-sm font-medium">{ex.nombre}</span>
