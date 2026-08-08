@@ -51,16 +51,30 @@ export function ManualRoutineBuilder({
   const replaceFileInputRef = useRef<HTMLInputElement>(null);
 
   const openModal = useCallback(async () => {
-    setStep(1);
     if (mode === 'edit' && existingRoutine) {
-      const days = existingRoutine.routine_data.dias
+      console.log('[ManualRoutineBuilder] edit mode — existingRoutine.id:', existingRoutine.id);
+      console.log('[ManualRoutineBuilder] routine_data:', JSON.stringify(existingRoutine.routine_data));
+
+      const dias = existingRoutine.routine_data?.dias ?? [];
+      const days = dias
         .map((dia) => DAYS.indexOf(dia.nombre))
         .filter((i) => i >= 0)
         .sort((a, b) => a - b);
-      setSelectedDays(days);
+
+      console.log('[ManualRoutineBuilder] dia nombres:', dias.map((d) => d.nombre));
+      console.log('[ManualRoutineBuilder] resolved selectedDays:', days);
+
+      // If no days resolved (e.g. AI routine with non-Spanish names), fall back
+      // to client's configured days so the user can at least re-assign.
+      const resolvedDays = days.length > 0 ? days : [...clientDiasDisponibles].sort((a, b) => a - b);
+      setSelectedDays(resolvedDays);
+
       const initialDayMap: DayMap = {};
-      existingRoutine.routine_data.dias.forEach((dia) => {
-        const dayIdx = DAYS.indexOf(dia.nombre);
+      dias.forEach((dia, seqIdx) => {
+        // Primary: match by day name. Fallback: use position within resolvedDays.
+        const dayIdx = DAYS.indexOf(dia.nombre) >= 0
+          ? DAYS.indexOf(dia.nombre)
+          : resolvedDays[seqIdx] ?? -1;
         if (dayIdx < 0) return;
         initialDayMap[dayIdx] = {};
         dia.ejercicios.forEach((ej) => {
@@ -71,10 +85,14 @@ export function ManualRoutineBuilder({
           };
         });
       });
+
+      console.log('[ManualRoutineBuilder] initialDayMap keys:', Object.keys(initialDayMap));
       setDayMap(initialDayMap);
+      setStep(2); // skip day picker — go straight to exercise builder
     } else {
       setSelectedDays([...clientDiasDisponibles].sort((a, b) => a - b));
       setDayMap({});
+      setStep(1);
     }
     setActiveTab(0);
     setOpen(true);
