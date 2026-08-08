@@ -396,7 +396,7 @@ export function ManualRoutineBuilder({
             {/* Header */}
             <div className="flex items-center justify-between border-b px-6 py-4">
               <div>
-                <h2 className="text-lg font-semibold">Crear plan manual</h2>
+                <h2 className="text-lg font-semibold">{mode === 'edit' ? 'Editar plan' : 'Crear plan manual'}</h2>
                 <p className="text-sm text-muted-foreground">
                   {step === 1 ? 'Paso 1 · Selecciona los días' : 'Paso 2 · Asigna ejercicios por día'}
                 </p>
@@ -489,7 +489,9 @@ export function ManualRoutineBuilder({
                   {loadingEx ? (
                     <p className="py-10 text-center text-sm text-muted-foreground">Cargando ejercicios…</p>
                   ) : (
-                    grouped.map(([group, exs]) => (
+                    grouped.map(([group, exs]) => {
+                      const selectedInGroup = exs.filter((ex) => !!activeDayExercises[ex.id]).length;
+                      return (
                       <div key={group}>
                         <button
                           onClick={() => toggleGroup(group)}
@@ -498,10 +500,15 @@ export function ManualRoutineBuilder({
                           {expandedGroups[group]
                             ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
                             : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
-                          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground capitalize">
+                          <span className={`text-xs font-semibold uppercase tracking-wide capitalize ${selectedInGroup > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
                             {group}
                           </span>
                           <span className="text-xs text-muted-foreground">({exs.length})</span>
+                          {selectedInGroup > 0 && (
+                            <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                              {selectedInGroup} ✓
+                            </span>
+                          )}
                         </button>
 
                         {expandedGroups[group] && (
@@ -615,7 +622,7 @@ export function ManualRoutineBuilder({
                           </div>
                         )}
                       </div>
-                    ))
+                    );})
                   )}
 
                   {/* Custom exercise button + inline form */}
@@ -732,10 +739,10 @@ export function ManualRoutineBuilder({
                   </p>
                   <div className="flex gap-2">
                     <Button variant="outline" onClick={() => setStep(1)}>
-                      Atrás
+                      {mode === 'edit' ? 'Cambiar días' : 'Atrás'}
                     </Button>
                     <Button onClick={handleSubmit} disabled={submitting}>
-                      {submitting ? 'Guardando…' : 'Crear plan'}
+                      {submitting ? 'Guardando…' : mode === 'edit' ? 'Actualizar plan' : 'Crear plan'}
                     </Button>
                   </div>
                 </div>
