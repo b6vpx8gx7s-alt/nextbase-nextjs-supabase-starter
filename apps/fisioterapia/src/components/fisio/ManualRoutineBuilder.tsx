@@ -167,7 +167,7 @@ export function ManualRoutineBuilder({
     replacingGifForRef.current = null;
     if (!file || !exId) return;
     if (!file.type.startsWith('image/')) { toast.error('Solo se aceptan imágenes'); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error('El archivo supera 5 MB'); return; }
+    if (file.size > 28 * 1024 * 1024) { toast.error('El archivo supera 28 MB'); return; }
 
     const toastId = toast.loading('Actualizando imagen…');
     try {
@@ -195,7 +195,7 @@ export function ManualRoutineBuilder({
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) { toast.error('Solo se aceptan imágenes o GIFs'); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error('El archivo no puede superar 5 MB'); return; }
+    if (file.size > 28 * 1024 * 1024) { toast.error('El archivo no puede superar 28 MB'); return; }
 
     const localUrl = URL.createObjectURL(file);
     setGifPreviewUrl(localUrl);

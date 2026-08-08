@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getClientAndContext, createFisioAdminClient } from '../../_helpers';
 
-const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_BYTES = 28 * 1024 * 1024; // 28 MB
 
 export async function POST(request: Request) {
   try {
