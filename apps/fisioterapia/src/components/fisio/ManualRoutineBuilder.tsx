@@ -108,7 +108,7 @@ export function ManualRoutineBuilder({
         });
       });
 
-      console.log('[ManualRoutineBuilder] initialDayMap keys:', Object.keys(initialDayMap));
+      console.log('[ManualRoutineBuilder] initialDayMap full:', JSON.stringify(initialDayMap));
       setDayMap(initialDayMap);
       setStep(2); // skip day picker — go straight to exercise builder
     } else {
@@ -279,31 +279,61 @@ export function ManualRoutineBuilder({
   };
 
   const handleSubmit = async () => {
-    const dias: DraftDia[] = selectedDays.map((dayIdx, i) => {
-      const exEntries = Object.entries(dayMap[dayIdx] ?? {});
-      const ejercicios: DraftEjercicio[] = exEntries.map(([exId, params]) => {
-        const ex = exercises.find((e) => e.id === exId)!;
-        return {
-          exercise_id: exId,
-          nombre: ex.nombre,
-          gif_url: ex.gif_url ?? null,
-          series: params.series,
-          repeticiones: params.repeticiones || '10',
-          descanso_seg: 60,
-          nota: params.notas || undefined,
-        };
-      });
-      return { dia_index: i, nombre: DAYS[dayIdx], ejercicios };
-    });
-
-    const emptyDays = dias.filter((d) => d.ejercicios.length === 0);
-    if (emptyDays.length > 0) {
-      toast.error(`Sin ejercicios: ${emptyDays.map((d) => d.nombre).join(', ')}`);
-      return;
-    }
+    console.log('[ManualRoutineBuilder] handleSubmit — selectedDays:', selectedDays);
+    console.log('[ManualRoutineBuilder] handleSubmit — dayMap:', JSON.stringify(dayMap));
+    console.log('[ManualRoutineBuilder] handleSubmit — exercises loaded:', exercises.length);
 
     setSubmitting(true);
     try {
+      const dias: DraftDia[] = selectedDays.map((dayIdx, i) => {
+        const exEntries = Object.entries(dayMap[dayIdx] ?? {});
+        const ejercicios: DraftEjercicio[] = exEntries.flatMap(([exId, params]) => {
+          let ex = exercises.find((e) => e.id === exId);
+
+          if (!ex) {
+            // Exercise not in current catalog — recover from existing plan data
+            console.warn('[ManualRoutineBuilder] exercise not in catalog, recovering from plan:', exId);
+            for (const dia of existingRoutine?.routine_data.dias ?? []) {
+              const found = dia.ejercicios.find((e) => e.exercise_id === exId);
+              if (found) {
+                ex = {
+                  id: exId,
+                  nombre: found.nombre,
+                  gif_url: found.gif_url ?? null,
+                  patron: '', grupo_muscular: '', nivel: '', equipo: '',
+                  descripcion_breve: '', caution_notes: [], forbidden: false,
+                };
+                break;
+              }
+            }
+          }
+
+          if (!ex) {
+            console.error('[ManualRoutineBuilder] exercise not found anywhere, skipping:', exId);
+            return [];
+          }
+
+          return [{
+            exercise_id: exId,
+            nombre: ex.nombre,
+            gif_url: ex.gif_url ?? null,
+            series: params.series,
+            repeticiones: params.repeticiones || '10',
+            descanso_seg: 60,
+            nota: params.notas || undefined,
+          }];
+        });
+        return { dia_index: i, nombre: DAYS[dayIdx], ejercicios };
+      });
+
+      console.log('[ManualRoutineBuilder] handleSubmit — dias to send:', JSON.stringify(dias));
+
+      const emptyDays = dias.filter((d) => d.ejercicios.length === 0);
+      if (emptyDays.length > 0) {
+        toast.error(`Sin ejercicios: ${emptyDays.map((d) => d.nombre).join(', ')}`);
+        return;
+      }
+
       const isEdit = mode === 'edit' && existingRoutine;
       const res = await fetch(
         isEdit ? `/api/fisio/routines/${existingRoutine!.id}` : '/api/fisio/routines/manual',
@@ -326,6 +356,7 @@ export function ManualRoutineBuilder({
         onCreated?.(routine);
       }
     } catch (err) {
+      console.error('[ManualRoutineBuilder] handleSubmit error:', err);
       toast.error(err instanceof Error ? err.message : 'Error inesperado');
     } finally {
       setSubmitting(false);
