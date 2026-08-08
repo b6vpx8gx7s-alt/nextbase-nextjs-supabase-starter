@@ -100,6 +100,7 @@ export function ManualRoutineBuilder({
         if (dayIdx < 0) return;
         initialDayMap[dayIdx] = {};
         dia.ejercicios.forEach((ej) => {
+          if (!ej.exercise_id) return; // skip exercises with missing IDs (e.g. AI-generated without linking)
           initialDayMap[dayIdx][ej.exercise_id] = {
             series: ej.series,
             repeticiones: ej.repeticiones,
@@ -326,11 +327,14 @@ export function ManualRoutineBuilder({
         return { dia_index: i, nombre: DAYS[dayIdx], ejercicios };
       });
 
-      console.log('[ManualRoutineBuilder] handleSubmit — dias to send:', JSON.stringify(dias));
+      // Drop days that ended up with no exercises (deselected days, pre-population
+      // failures, exercises with missing IDs). Only block if the plan would be
+      // completely empty.
+      const diasToSend = dias.filter((d) => d.ejercicios.length > 0);
+      console.log('[ManualRoutineBuilder] handleSubmit — diasToSend:', JSON.stringify(diasToSend));
 
-      const emptyDays = dias.filter((d) => d.ejercicios.length === 0);
-      if (emptyDays.length > 0) {
-        toast.error(`Sin ejercicios: ${emptyDays.map((d) => d.nombre).join(', ')}`);
+      if (diasToSend.length === 0) {
+        toast.error('Añade al menos un ejercicio al plan');
         return;
       }
 
@@ -340,7 +344,7 @@ export function ManualRoutineBuilder({
         {
           method: isEdit ? 'PATCH' : 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(isEdit ? { dias } : { client_id: clientId, dias }),
+          body: JSON.stringify(isEdit ? { dias: diasToSend } : { client_id: clientId, dias: diasToSend }),
         }
       );
       if (!res.ok) {
