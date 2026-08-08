@@ -2,15 +2,16 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, LogOut, ChevronUp } from 'lucide-react';
+import { Users, LogOut } from 'lucide-react';
 import { createClient } from '@/supabase-clients/client';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 
-const navItems = [
-  { title: 'Dashboard', url: '/dashboard', icon: LayoutDashboard },
-  { title: 'Pacientes', url: '/pacientes', icon: Users },
+type NavItem = { title: string; url: string; icon: typeof Users; matchPaths?: string[] };
+
+const navItems: NavItem[] = [
+  { title: 'Pacientes', url: '/dashboard', icon: Users, matchPaths: ['/dashboard', '/pacientes'] },
 ];
 
 export function AppSidebarContent({ user }: { user: User }) {
@@ -60,7 +61,9 @@ export function AppSidebarContent({ user }: { user: User }) {
       <nav className="flex-1 px-3 py-4 space-y-1">
         <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Menú</p>
         {navItems.map((item) => {
-          const isActive = pathname.startsWith(item.url);
+          const isActive = item.matchPaths
+            ? item.matchPaths.some((p) => pathname.startsWith(p))
+            : pathname.startsWith(item.url);
           const Icon = item.icon;
           return (
             <Link
