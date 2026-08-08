@@ -2,32 +2,35 @@ import { NextResponse } from 'next/server';
 import { getClientAndContext, createFisioAdminClient } from '../_helpers';
 
 export async function GET() {
-  console.log('[GET /api/fisio/clients] ── START ──');
   try {
-    console.log('[GET /api/fisio/clients] Calling getClientAndContext...');
-    const { supabase, ctx } = await getClientAndContext();
-    console.log('[GET /api/fisio/clients] Auth user:', ctx?.userId ?? 'NULL');
-    console.log('[GET /api/fisio/clients] Business ID:', ctx?.businessId ?? 'NULL');
-
+    const { ctx } = await getClientAndContext();
     if (!ctx) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
 
-    console.log('[GET /api/fisio/clients] Antes de query physio_clients');
-    const { data, error } = await supabase
+    const admin = createFisioAdminClient();
+
+    // ── DEBUG: show what business_ids exist vs what we're querying ──
+    const { data: allRows } = await admin
+      .from('physio_clients')
+      .select('id, business_id')
+      .limit(10);
+    console.log('[GET /api/fisio/clients] ctx.businessId =', ctx.businessId);
+    console.log('[GET /api/fisio/clients] physio_clients sample (id, business_id):', JSON.stringify(allRows));
+    // ── END DEBUG ──
+
+    const { data, error } = await admin
       .from('physio_clients')
       .select('*')
       .eq('business_id', ctx.businessId)
       .order('created_at', { ascending: false });
 
-    console.log('[GET /api/fisio/clients] Query result — error:', error?.message ?? 'none', '| rows:', data?.length ?? 'null');
-
     if (error) {
-      console.error('[GET /api/fisio/clients] Supabase error:', error.message, error.code, error.hint);
+      console.error('[GET /api/fisio/clients] query error:', error.message, error.code);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ clients: data });
   } catch (err) {
-    console.error('[GET /api/fisio/clients] Unhandled exception:', err);
+    console.error('[GET /api/fisio/clients] exception:', err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Error interno' },
       { status: 500 }
