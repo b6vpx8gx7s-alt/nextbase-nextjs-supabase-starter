@@ -11,6 +11,28 @@ const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', '
 const MUSCLE_GROUPS = ['pecho', 'hombros', 'espalda', 'piernas', 'gluteos', 'core', 'cardio', 'movilidad'];
 const SHORT_DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
+async function uploadExerciseFile(file: File): Promise<string> {
+  const urlRes = await fetch('/api/fisio/exercises/upload-url', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ filename: file.name, contentType: file.type }),
+  });
+  if (!urlRes.ok) {
+    const { error } = await urlRes.json();
+    throw new Error(error ?? 'Error al obtener URL de subida');
+  }
+  const { signedUrl, publicUrl } = await urlRes.json();
+
+  const uploadRes = await fetch(signedUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type },
+    body: file,
+  });
+  if (!uploadRes.ok) throw new Error('Error al subir imagen a Storage');
+
+  return publicUrl as string;
+}
+
 interface Props {
   clientId: string;
   clientDiasDisponibles: number[];
@@ -171,11 +193,7 @@ export function ManualRoutineBuilder({
 
     const toastId = toast.loading('Actualizando imagen…');
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const uploadRes = await fetch('/api/fisio/exercises/upload', { method: 'POST', body: fd });
-      if (!uploadRes.ok) { const { error } = await uploadRes.json(); throw new Error(error ?? 'Error al subir'); }
-      const { url } = await uploadRes.json();
+      const url = await uploadExerciseFile(file);
 
       const patchRes = await fetch(`/api/fisio/exercises/${exId}`, {
         method: 'PATCH',
@@ -201,14 +219,7 @@ export function ManualRoutineBuilder({
     setGifPreviewUrl(localUrl);
     setUploadingGif(true);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const res = await fetch('/api/fisio/exercises/upload', { method: 'POST', body: fd });
-      if (!res.ok) {
-        const { error } = await res.json();
-        throw new Error(error ?? 'Error al subir imagen');
-      }
-      const { url } = await res.json();
+      const url = await uploadExerciseFile(file);
       setCustomDraft((d) => ({ ...d, gif_url: url }));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al subir imagen');
