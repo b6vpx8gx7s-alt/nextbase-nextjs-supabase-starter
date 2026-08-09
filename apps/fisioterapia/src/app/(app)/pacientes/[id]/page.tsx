@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { GenerateRoutineButton } from '@/components/fisio/GenerateRoutineButton';
 import { ManualRoutineBuilder } from '@/components/fisio/ManualRoutineBuilder';
 import { RoutineView } from '@/components/fisio/RoutineView';
+import { ClinicalHistory } from '@/components/fisio/ClinicalHistory';
+import { PatientGoals } from '@/components/fisio/PatientGoals';
 import type { PhysioClient, Pathology, PainEntry, PhysioRoutine } from '@/lib/fisio-types';
 import { ChevronLeft, AlertTriangle, Activity, ClipboardList } from 'lucide-react';
 import Link from 'next/link';
@@ -164,6 +166,12 @@ export default function ClientDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Historial clínico */}
+      <ClinicalHistory clientId={id} />
+
+      {/* Objetivos */}
+      <PatientGoals clientId={id} />
 
       {/* Plan actual */}
       <Card>
