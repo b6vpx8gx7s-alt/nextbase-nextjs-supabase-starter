@@ -74,6 +74,13 @@ export function ClinicalHistory({ clientId }: Props) {
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Custom type mini-form
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [customLabel, setCustomLabel] = useState('');
+  const [customUnit, setCustomUnit] = useState('');
+  const [customCategory, setCustomCategory] = useState('escala_clinica');
+  const [creatingCustom, setCreatingCustom] = useState(false);
+
   useEffect(() => {
     Promise.all([
       fetch(`/api/fisio/measurements?client_id=${clientId}`).then((r) => r.json()),
@@ -92,7 +99,54 @@ export function ClinicalHistory({ clientId }: Props) {
     setValue('');
     setMeasuredAt(new Date().toISOString().slice(0, 10));
     setNotes('');
+    setShowCustomForm(false);
+    setCustomLabel('');
+    setCustomUnit('');
+    setCustomCategory('escala_clinica');
     setOpen(true);
+  };
+
+  const cancelCustomForm = () => {
+    setShowCustomForm(false);
+    setSelectedType('');
+    setCustomLabel('');
+    setCustomUnit('');
+    setCustomCategory('escala_clinica');
+  };
+
+  const handleCreateCustomType = async () => {
+    if (!customLabel.trim()) {
+      toast.error('El nombre es requerido');
+      return;
+    }
+    setCreatingCustom(true);
+    try {
+      const res = await fetch('/api/fisio/measurement-types/custom', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label: customLabel.trim(),
+          unit: customUnit.trim() || undefined,
+          category: customCategory,
+        }),
+      });
+      if (!res.ok) {
+        const { error } = await res.json();
+        throw new Error(error ?? 'Error al crear tipo');
+      }
+      const { type } = await res.json();
+      setTypes((prev) => [...prev, type]);
+      setSelectedType(type.code);
+      setShowCustomForm(false);
+      setCustomLabel('');
+      setCustomUnit('');
+      setCustomCategory('escala_clinica');
+      toast.success('Tipo de medición creado');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error inesperado');
+    } finally {
+      setCreatingCustom(false);
+    }
   };
 
   const selectedTypeMeta = types.find((t) => t.code === selectedType) ?? null;
@@ -229,7 +283,18 @@ export function ClinicalHistory({ clientId }: Props) {
                 </label>
                 <select
                   value={selectedType}
-                  onChange={(e) => { setSelectedType(e.target.value); setValue(''); }}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '__custom__') {
+                      setSelectedType('__custom__');
+                      setShowCustomForm(true);
+                      setValue('');
+                    } else {
+                      setSelectedType(val);
+                      setShowCustomForm(false);
+                      setValue('');
+                    }
+                  }}
                   className="w-full rounded border px-3 py-2 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
                 >
                   <option value="">Selecciona un tipo…</option>
@@ -240,65 +305,142 @@ export function ClinicalHistory({ clientId }: Props) {
                       ))}
                     </optgroup>
                   ))}
+                  <option value="__custom__">+ Agregar tipo personalizado</option>
                 </select>
-              </div>
 
-              <div className="flex gap-3">
-                <div className="flex-1">
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Valor
-                    {selectedTypeMeta && selectedTypeMeta.min_value !== null && selectedTypeMeta.max_value !== null
-                      ? ` (${selectedTypeMeta.min_value}–${selectedTypeMeta.max_value})`
-                      : ''}
-                  </label>
-                  <input
-                    type="number"
-                    value={value}
-                    onChange={(e) => setValue(e.target.value)}
-                    placeholder="0"
-                    className="w-full rounded border px-3 py-2 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-                {selectedTypeMeta?.unit_default && (
-                  <div className="w-24 flex flex-col justify-end">
-                    <span className="block rounded border bg-muted px-3 py-2 text-sm text-muted-foreground">
-                      {selectedTypeMeta.unit_default}
-                    </span>
+                {/* Custom type mini-form */}
+                {showCustomForm && (
+                  <div className="mt-2 rounded-md border bg-muted/30 p-3 space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Nuevo tipo de medición
+                    </p>
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                        Nombre *
+                      </label>
+                      <input
+                        type="text"
+                        value={customLabel}
+                        onChange={(e) => setCustomLabel(e.target.value)}
+                        placeholder="Ej: Fuerza de agarre"
+                        autoFocus
+                        className="w-full rounded border px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                          Categoría
+                        </label>
+                        <select
+                          value={customCategory}
+                          onChange={(e) => setCustomCategory(e.target.value)}
+                          className="w-full rounded border px-2 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                        >
+                          {CATEGORY_ORDER.map((cat) => (
+                            <option key={cat} value={cat}>{CATEGORY_LABELS[cat]}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="w-24">
+                        <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                          Unidad
+                        </label>
+                        <input
+                          type="text"
+                          value={customUnit}
+                          onChange={(e) => setCustomUnit(e.target.value)}
+                          placeholder="kg, °, pts…"
+                          className="w-full rounded border px-2 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={cancelCustomForm}
+                        disabled={creatingCustom}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleCreateCustomType}
+                        disabled={creatingCustom || !customLabel.trim()}
+                      >
+                        {creatingCustom ? 'Creando…' : 'Crear tipo'}
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
 
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Fecha
-                </label>
-                <input
-                  type="date"
-                  value={measuredAt}
-                  onChange={(e) => setMeasuredAt(e.target.value)}
-                  className="w-full rounded border px-3 py-2 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
+              {/* Value / date / notes — hidden while the custom form is open */}
+              {!showCustomForm && selectedType && selectedType !== '__custom__' && (
+                <>
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Valor
+                        {selectedTypeMeta && selectedTypeMeta.min_value !== null && selectedTypeMeta.max_value !== null
+                          ? ` (${selectedTypeMeta.min_value}–${selectedTypeMeta.max_value})`
+                          : ''}
+                      </label>
+                      <input
+                        type="number"
+                        value={value}
+                        onChange={(e) => setValue(e.target.value)}
+                        placeholder="0"
+                        className="w-full rounded border px-3 py-2 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                    </div>
+                    {selectedTypeMeta?.unit_default && (
+                      <div className="w-24 flex flex-col justify-end">
+                        <span className="block rounded border bg-muted px-3 py-2 text-sm text-muted-foreground">
+                          {selectedTypeMeta.unit_default}
+                        </span>
+                      </div>
+                    )}
+                  </div>
 
-              <div>
-                <label className="mb-1 block text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Notas (opcional)
-                </label>
-                <input
-                  type="text"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Observaciones…"
-                  className="w-full rounded border px-3 py-2 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Fecha
+                    </label>
+                    <input
+                      type="date"
+                      value={measuredAt}
+                      onChange={(e) => setMeasuredAt(e.target.value)}
+                      className="w-full rounded border px-3 py-2 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Notas (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Observaciones…"
+                      className="w-full rounded border px-3 py-2 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 border-t px-5 py-4">
-              <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={saving}>
+              <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={saving || creatingCustom}>
                 Cancelar
               </Button>
-              <Button size="sm" onClick={handleSave} disabled={saving || !selectedType || value === ''}>
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={saving || showCustomForm || !selectedType || selectedType === '__custom__' || value === ''}
+              >
                 {saving ? 'Guardando…' : 'Registrar'}
               </Button>
             </div>
