@@ -49,6 +49,9 @@ export async function POST(request: Request) {
         .eq('estado', 'activo'),
     ]);
 
+    if (measRes.error) console.warn('[routines/generate] measRes error:', measRes.error.message);
+    if (goalsRes.error) console.warn('[routines/generate] goalsRes error:', goalsRes.error.message);
+
     // Dedupe measurements: keep most recent per type (data already ordered by measured_at DESC)
     const seenTypes = new Set<string>();
     const latestMeasurements = (measRes.data ?? [])
@@ -104,6 +107,9 @@ export async function POST(request: Request) {
 
     const rawText = message.content[0].type === 'text' ? message.content[0].text : '';
 
+    console.log('[routines/generate] stop_reason:', message.stop_reason);
+    console.log('[routines/generate] rawText (first 800):', rawText.slice(0, 800));
+
     // ── 5. Parsear respuesta ──────────────────────────────────
     let draft: { dias: DraftDia[]; notas_generales: string };
     try {
@@ -120,6 +126,7 @@ export async function POST(request: Request) {
     // ── 6. Post-validación determinista ──────────────────────
     const validatedDias = postValidate(draft.dias, safeExercises);
     const diasConEjercicios = validatedDias.filter((d) => d.ejercicios.length > 0);
+    console.log('[routines/generate] validatedDias count:', validatedDias.length, '| diasConEjercicios:', diasConEjercicios.length);
 
     if (diasConEjercicios.length === 0) {
       return NextResponse.json(
@@ -172,11 +179,15 @@ export async function POST(request: Request) {
     return NextResponse.json({
       routine: {
         id: routine.id,
+        client_id,
         semana,
         year,
-        dias: diasConEjercicios,
-        notas_generales: draft.notas_generales ?? null,
+        routine_data: {
+          dias: diasConEjercicios,
+          notas_generales: draft.notas_generales ?? null,
+        },
         estado: 'generada',
+        generated_at: new Date().toISOString(),
       },
     });
   } catch (err: unknown) {
