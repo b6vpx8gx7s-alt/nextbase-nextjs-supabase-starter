@@ -10,8 +10,10 @@ import { ManualRoutineBuilder } from '@/components/fisio/ManualRoutineBuilder';
 import { RoutineView } from '@/components/fisio/RoutineView';
 import { ClinicalHistory } from '@/components/fisio/ClinicalHistory';
 import { PatientGoals } from '@/components/fisio/PatientGoals';
+import { PatientPathologies } from '@/components/fisio/PatientPathologies';
+import { PatientPainMap } from '@/components/fisio/PatientPainMap';
 import type { PhysioClient, Pathology, PainEntry, PhysioRoutine } from '@/lib/fisio-types';
-import { ChevronLeft, AlertTriangle, Activity, ClipboardList } from 'lucide-react';
+import { ChevronLeft, Activity } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
@@ -115,56 +117,8 @@ export default function ClientDetailPage() {
 
       {/* Info clínica */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ClipboardList className="h-4 w-4" />
-              Patologías
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {pathologies.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Ninguna registrada</p>
-            ) : (
-              <ul className="space-y-2">
-                {pathologies.map((p) => (
-                  <li key={p.id} className="text-sm">
-                    <span className="font-medium">{p.nombre}</span>
-                    <span className="text-muted-foreground"> — {p.zona_corporal}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="h-4 w-4" />
-              Zonas de dolor
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {pain_map.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Ninguna registrada</p>
-            ) : (
-              <ul className="space-y-2">
-                {pain_map.map((p, i) => (
-                  <li key={i} className="flex items-center justify-between text-sm">
-                    <span>{p.zona_corporal} — {p.mecanica}</span>
-                    <Badge
-                      variant={p.nivel >= 7 ? 'destructive' : p.nivel >= 4 ? 'secondary' : 'outline'}
-                      className="ml-2"
-                    >
-                      {p.nivel}/10
-                    </Badge>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+        <PatientPathologies clientId={id} initial={pathologies} />
+        <PatientPainMap clientId={id} initial={pain_map} />
       </div>
 
       {/* Historial clínico */}
