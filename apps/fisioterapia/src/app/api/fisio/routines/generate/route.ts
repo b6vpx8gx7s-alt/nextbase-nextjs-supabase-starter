@@ -26,8 +26,8 @@ export async function POST(request: Request) {
 
     const diasCount = (client.dias_disponibles as number[] | null)?.length ?? 3;
 
-    // ── 2. Leer patologías y dolor del cliente ────────────────
-    const [pathRes, painRes] = await Promise.all([
+    // ── 2. Leer patologías, dolor, mediciones y objetivos ────
+    const [pathRes, painRes, measRes, goalsRes] = await Promise.all([
       supabase.from('pathologies').select('nombre, zona_corporal').eq('client_id', client_id),
       supabase
         .from('pain_map')
@@ -35,7 +35,41 @@ export async function POST(request: Request) {
         .eq('client_id', client_id)
         .gte('nivel', 4)
         .order('created_at', { ascending: false }),
+      supabase
+        .from('patient_measurements')
+        .select('measurement_type, value, unit, measured_at, measurement_types(label, unit_default)')
+        .eq('client_id', client_id)
+        .eq('business_id', ctx.businessId)
+        .order('measured_at', { ascending: false }),
+      supabase
+        .from('patient_goals')
+        .select('descripcion, fecha_objetivo')
+        .eq('client_id', client_id)
+        .eq('business_id', ctx.businessId)
+        .eq('estado', 'activo'),
     ]);
+
+    // Dedupe measurements: keep most recent per type (data already ordered by measured_at DESC)
+    const seenTypes = new Set<string>();
+    const latestMeasurements = (measRes.data ?? [])
+      .filter((m) => {
+        if (seenTypes.has(m.measurement_type)) return false;
+        seenTypes.add(m.measurement_type);
+        return true;
+      })
+      .slice(0, 10)
+      .map((m) => {
+        // Supabase may return the joined relation as array or object depending on schema
+        const meta = Array.isArray(m.measurement_types)
+          ? (m.measurement_types[0] as { label: string; unit_default: string | null } | undefined)
+          : (m.measurement_types as { label: string; unit_default: string | null } | null);
+        return {
+          label: meta?.label ?? m.measurement_type,
+          value: m.value as number,
+          unit: (m.unit ?? meta?.unit_default ?? null) as string | null,
+          measured_at: m.measured_at as string,
+        };
+      });
 
     // ── 3. Pre-filtro determinista ────────────────────────────
     const safeExercises = await getSafeExercises(client_id, supabase);
@@ -56,6 +90,8 @@ export async function POST(request: Request) {
       pathologies: (pathRes.data ?? []) as { nombre: string; zona_corporal: string }[],
       pain_entries: (painRes.data ?? []) as { zona_corporal: string; mecanica: string; nivel: number }[],
       safeExercises,
+      measurements: latestMeasurements,
+      goals: (goalsRes.data ?? []) as { descripcion: string; fecha_objetivo: string | null }[],
     });
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });

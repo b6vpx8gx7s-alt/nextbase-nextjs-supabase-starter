@@ -8,6 +8,8 @@ interface PromptContext {
   pathologies: { nombre: string; zona_corporal: string }[];
   pain_entries: { zona_corporal: string; mecanica: string; nivel: number }[];
   safeExercises: SafeExercise[];
+  measurements: { label: string; value: number; unit: string | null; measured_at: string }[];
+  goals: { descripcion: string; fecha_objetivo: string | null }[];
 }
 
 const PATRON_LABEL: Record<string, string> = {
@@ -81,6 +83,28 @@ export function buildPrompt(ctx: PromptContext): string {
           .join('\n')
       : '  - Ninguno';
 
+  const measStr =
+    ctx.measurements.length > 0
+      ? ctx.measurements
+          .map((m) => {
+            const unit = m.unit ? ' ' + m.unit : '';
+            const date = new Date(m.measured_at + 'T00:00:00').toLocaleDateString('es-CL', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+            });
+            return '  - ' + m.label + ': ' + m.value + unit + ' (' + date + ')';
+          })
+          .join('\n')
+      : '  - Sin mediciones registradas';
+
+  const goalsStr =
+    ctx.goals.length > 0
+      ? ctx.goals
+          .map((g) => '  - ' + g.descripcion + (g.fecha_objetivo ? ' → ' + g.fecha_objetivo : ''))
+          .join('\n')
+      : '  - Sin objetivos definidos';
+
   const objetivo = OBJETIVO_LABEL[ctx.objetivo] ?? ctx.objetivo.replace('_', ' ');
 
   return [
@@ -99,6 +123,12 @@ export function buildPrompt(ctx: PromptContext): string {
     'Zonas de dolor activo (nivel >= 4/10):',
     painStr,
     '',
+    'HISTORIAL CLINICO RECIENTE (ultima medicion por tipo):',
+    measStr,
+    '',
+    'OBJETIVOS TERAPEUTICOS ACTIVOS:',
+    goalsStr,
+    '',
     'REGLAS ESTRICTAS:',
     '1. Genera exactamente ' + ctx.dias_count + ' dias de entrenamiento para una semana.',
     '2. USA UNICAMENTE los ejercicios del catalogo de abajo. NO inventes ejercicios ni uses IDs distintos.',
@@ -106,6 +136,11 @@ export function buildPrompt(ctx: PromptContext): string {
     '4. Cada dia: entre 4 y 7 ejercicios. Incluye al menos un ejercicio de movilidad.',
     '5. Alterna grupos musculares entre dias para permitir recuperacion.',
     '6. Adapta series/repeticiones al nivel ' + ctx.nivel_fisico + ' y al objetivo ' + objetivo + '.',
+    '7. Ten en cuenta el historial clinico al disenar el plan:',
+    '   - Si el EVA de dolor es >= 6, prioriza ejercicios de baja carga e intensidad.',
+    '   - Usa los ROM registrados para seleccionar rangos de movimiento alcanzables (no exijas mas ROM del medido).',
+    '   - Orienta la progresion de series/reps y la seleccion de ejercicios hacia los objetivos terapeuticos activos.',
+    '   - Menciona el historial clinico relevante en las notas_generales del plan.',
     '',
     'CATALOGO DE EJERCICIOS PERMITIDOS (solo puedes usar estos):',
     catalogLines,
