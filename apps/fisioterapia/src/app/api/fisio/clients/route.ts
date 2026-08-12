@@ -56,6 +56,7 @@ export async function POST(request: Request) {
       notas,
       pathologies = [],
       pain_entries = [],
+      roda_customer_id = null,
     } = body;
 
     if (!nombre?.trim()) {
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
       .from('physio_clients')
       .insert({
         business_id: ctx.businessId,
+        roda_customer_id: roda_customer_id || null,
         nombre: nombre.trim(),
         email: email || null,
         telefono: telefono || null,

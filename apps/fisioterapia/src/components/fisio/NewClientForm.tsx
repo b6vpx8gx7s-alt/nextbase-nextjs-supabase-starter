@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, ChevronRight, ChevronLeft, Check } from 'lucide-react';
+import { Plus, Trash2, ChevronRight, ChevronLeft, Check, Search, UserPlus, Link } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const ZONAS = [
@@ -17,6 +17,13 @@ const MECANICA_OPTS = ['al mover', 'al cargar peso', 'en reposo', 'al estirar', 
 
 const DIAS_LABEL = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
+interface RodaCustomer {
+  id: string;
+  nombre: string;
+  telefono: string;
+  email: string | null;
+}
+
 interface PathologyEntry {
   nombre: string;
   zona_corporal: string;
@@ -29,12 +36,28 @@ interface PainEntry {
   nivel: number;
 }
 
-type Step = 'datos' | 'patologias' | 'dolor' | 'plan';
+type Step = 'vincular' | 'datos' | 'patologias' | 'dolor' | 'plan';
+
+const STEP_LABELS: Record<Step, string> = {
+  vincular: 'Vincular RODA',
+  datos: 'Datos básicos',
+  patologias: 'Patologías',
+  dolor: 'Mapa de dolor',
+  plan: 'Plan',
+};
 
 export function NewClientForm() {
   const router = useRouter();
-  const [step, setStep] = useState<Step>('datos');
+  const [step, setStep] = useState<Step>('vincular');
   const [loading, setLoading] = useState(false);
+
+  // Step 0: Vincular cliente RODA
+  const [rodaCustomerId, setRodaCustomerId] = useState<string | null>(null);
+  const [rodaLinkedName, setRodaLinkedName] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<RodaCustomer[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Step 1: Datos básicos
   const [nombre, setNombre] = useState('');
@@ -54,6 +77,52 @@ export function NewClientForm() {
   const [nivelFisico, setNivelFisico] = useState<'principiante' | 'intermedio' | 'avanzado'>('principiante');
   const [objetivo, setObjetivo] = useState('rehabilitacion');
   const [dias, setDias] = useState<number[]>([]);
+
+  // Debounced search against RODA customers
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (search.trim().length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    debounceRef.current = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(`/api/fisio/roda-customers?search=${encodeURIComponent(search.trim())}`);
+        if (res.ok) {
+          const { customers } = await res.json();
+          setSearchResults(customers ?? []);
+        }
+      } catch {
+        // silently ignore search errors
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [search]);
+
+  const handleSelectRodaCustomer = (customer: RodaCustomer) => {
+    setRodaCustomerId(customer.id);
+    setRodaLinkedName(customer.nombre);
+    setNombre(customer.nombre);
+    setTelefono(customer.telefono ?? '');
+    setEmail(customer.email ?? '');
+    setSearch('');
+    setSearchResults([]);
+    setStep('datos');
+  };
+
+  const handleSkipLink = () => {
+    setRodaCustomerId(null);
+    setRodaLinkedName(null);
+    setStep('datos');
+  };
 
   const addPathology = () => {
     if (!newPath.nombre.trim()) return;
@@ -85,6 +154,7 @@ export function NewClientForm() {
           dias_disponibles: dias,
           pathologies,
           pain_entries: painEntries,
+          roda_customer_id: rodaCustomerId,
         }),
       });
 
@@ -103,13 +173,13 @@ export function NewClientForm() {
     }
   };
 
-  const steps: Step[] = ['datos', 'patologias', 'dolor', 'plan'];
+  const steps: Step[] = ['vincular', 'datos', 'patologias', 'dolor', 'plan'];
   const stepIndex = steps.indexOf(step);
 
   return (
     <div className="space-y-6">
       {/* Progress */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         {steps.map((s, i) => (
           <div key={s} className="flex items-center gap-2">
             <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold
@@ -119,18 +189,98 @@ export function NewClientForm() {
               {i < stepIndex ? <Check className="h-4 w-4" /> : i + 1}
             </div>
             {i < steps.length - 1 && (
-              <div className={`h-0.5 w-8 ${i < stepIndex ? 'bg-primary' : 'bg-muted'}`} />
+              <div className={`h-0.5 w-6 ${i < stepIndex ? 'bg-primary' : 'bg-muted'}`} />
             )}
           </div>
         ))}
-        <span className="ml-2 text-sm text-muted-foreground capitalize">
-          {{ datos: 'Datos básicos', patologias: 'Patologías', dolor: 'Mapa de dolor', plan: 'Plan' }[step]}
-        </span>
+        <span className="ml-2 text-sm text-muted-foreground">{STEP_LABELS[step]}</span>
       </div>
+
+      {/* Step 0: Vincular RODA */}
+      {step === 'vincular' && (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Busca si el paciente ya existe como cliente en RODA para vincular sus datos automáticamente.
+          </p>
+
+          {/* Search input */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              className="w-full rounded-md border pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por nombre o teléfono…"
+              autoFocus
+            />
+            {isSearching && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                Buscando…
+              </span>
+            )}
+          </div>
+
+          {/* Results */}
+          {searchResults.length > 0 && (
+            <ul className="divide-y rounded-md border overflow-hidden">
+              {searchResults.map((c) => (
+                <li key={c.id}>
+                  <button
+                    className="w-full text-left px-4 py-3 hover:bg-muted transition-colors text-sm"
+                    onClick={() => handleSelectRodaCustomer(c)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Link className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span className="font-medium">{c.nombre}</span>
+                      <span className="text-muted-foreground">{c.telefono}</span>
+                      {c.email && <span className="text-muted-foreground hidden sm:inline">{c.email}</span>}
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {search.trim().length >= 2 && !isSearching && searchResults.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-2">
+              No se encontraron clientes con ese criterio.
+            </p>
+          )}
+
+          {/* Skip */}
+          <div className="pt-2 border-t">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full gap-2"
+              onClick={handleSkipLink}
+            >
+              <UserPlus className="h-4 w-4" />
+              Crear paciente nuevo (sin vincular)
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Step 1: Datos */}
       {step === 'datos' && (
         <div className="space-y-4">
+          {rodaLinkedName && (
+            <div className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+              <Link className="h-4 w-4 text-primary shrink-0" />
+              <span>Vinculado a cliente RODA: <strong>{rodaLinkedName}</strong></span>
+              <button
+                className="ml-auto text-xs text-muted-foreground hover:text-foreground underline"
+                onClick={() => {
+                  setRodaCustomerId(null);
+                  setRodaLinkedName(null);
+                  setStep('vincular');
+                }}
+              >
+                Cambiar
+              </button>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium mb-1">Nombre *</label>
             <input
@@ -153,7 +303,7 @@ export function NewClientForm() {
               <input
                 className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background"
                 value={telefono} onChange={(e) => setTelefono(e.target.value)}
-                placeholder="+56 9 xxxx xxxx"
+                placeholder="+57 3xx xxx xxxx"
               />
             </div>
           </div>
