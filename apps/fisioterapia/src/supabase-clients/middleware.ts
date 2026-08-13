@@ -36,7 +36,7 @@ export async function updateSession(request: NextRequest) {
   const isProtected =
     pathname.startsWith('/dashboard') ||
     pathname.startsWith('/pacientes') ||
-    pathname.startsWith('/portal');
+    (pathname.startsWith('/portal') && pathname !== '/portal/complete-invite');
 
   if (!user && isProtected) {
     if (process.env.NODE_ENV === 'production') {
