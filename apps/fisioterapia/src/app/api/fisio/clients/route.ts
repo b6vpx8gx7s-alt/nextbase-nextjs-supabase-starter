@@ -143,7 +143,7 @@ export async function POST(request: Request) {
               : 'http://localhost:3001';
           const { data: invited, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
             normalizedEmail,
-            { redirectTo: `${baseUrl}/api/fisio/portal/complete-invite` }
+            { redirectTo: `${baseUrl}/portal/complete-invite` }
           );
           if (inviteError) {
             console.error('[POST /api/fisio/clients] inviteUserByEmail error:', inviteError.message);
