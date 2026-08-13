@@ -33,7 +33,10 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
-  const isProtected = pathname.startsWith('/dashboard') || pathname.startsWith('/pacientes');
+  const isProtected =
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/pacientes') ||
+    pathname.startsWith('/portal');
 
   if (!user && isProtected) {
     if (process.env.NODE_ENV === 'production') {

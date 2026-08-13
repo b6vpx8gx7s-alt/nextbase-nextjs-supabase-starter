@@ -15,6 +15,25 @@ async function AuthGuard({ children }: { children: ReactNode }) {
     redirect(loginUrl);
   }
 
+  // Check if this user is a fisio owner or employee
+  const [{ data: profile }, { data: employee }] = await Promise.all([
+    supabase.from('profiles').select('business_id').eq('user_id', user!.id).maybeSingle(),
+    supabase.from('employee_auth').select('employee_id').eq('user_id', user!.id).maybeSingle(),
+  ]);
+
+  const isFisioUser = !!profile?.business_id || !!employee?.employee_id;
+
+  if (!isFisioUser) {
+    // Not a fisio owner/employee — if they're a linked patient, send them to /portal
+    const { data: patientLink } = await supabase
+      .from('physio_client_users')
+      .select('physio_client_id')
+      .eq('auth_user_id', user!.id)
+      .maybeSingle();
+
+    redirect(patientLink ? '/portal' : '/login');
+  }
+
   return <>{children}</>;
 }
 

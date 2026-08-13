@@ -124,6 +124,48 @@ export async function POST(request: Request) {
       }
     }
 
+    // ── Vincular paciente al portal (si tiene email) ──────────────
+    if (email?.trim()) {
+      const normalizedEmail = email.trim().toLowerCase();
+      try {
+        // Check if an auth user already exists with this email
+        const { data: existingAuthId } = await supabase.rpc('get_auth_user_id_by_email', {
+          p_email: normalizedEmail,
+        });
+
+        let authUserId: string | null = existingAuthId ?? null;
+
+        if (!authUserId) {
+          // New user — send invite email
+          const baseUrl =
+            process.env.NODE_ENV === 'production'
+              ? 'https://fisioterapia.roda.ink'
+              : 'http://localhost:3001';
+          const { data: invited, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
+            normalizedEmail,
+            { redirectTo: `${baseUrl}/api/fisio/portal/complete-invite` }
+          );
+          if (inviteError) {
+            console.error('[POST /api/fisio/clients] inviteUserByEmail error:', inviteError.message);
+          } else {
+            authUserId = invited.user.id;
+          }
+        }
+
+        if (authUserId) {
+          const { error: linkError } = await supabase
+            .from('physio_client_users')
+            .insert({ physio_client_id: client.id, auth_user_id: authUserId });
+          if (linkError) {
+            console.error('[POST /api/fisio/clients] Insert physio_client_users error:', linkError.message, linkError.code);
+          }
+        }
+      } catch (err) {
+        // Non-fatal: patient is created, portal link will need manual fix
+        console.error('[POST /api/fisio/clients] Portal link exception:', err);
+      }
+    }
+
     return NextResponse.json({ client: { id: client.id } }, { status: 201 });
   } catch (err) {
     console.error('[POST /api/fisio/clients] Unhandled exception:', err);
