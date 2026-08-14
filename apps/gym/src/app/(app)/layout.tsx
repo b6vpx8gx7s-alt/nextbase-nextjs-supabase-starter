@@ -10,9 +10,7 @@ async function AuthGuard({ children }: { children: ReactNode }) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    const loginUrl =
-      process.env.NODE_ENV === 'production' ? 'https://www.roda.ink/login' : '/login';
-    redirect(loginUrl);
+    redirect('/login');
   }
 
   const [{ data: profile }, { data: employee }] = await Promise.all([

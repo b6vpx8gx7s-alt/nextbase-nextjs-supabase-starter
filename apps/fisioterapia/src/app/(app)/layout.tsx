@@ -10,9 +10,7 @@ async function AuthGuard({ children }: { children: ReactNode }) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    const loginUrl =
-      process.env.NODE_ENV === 'production' ? 'https://www.roda.ink/login' : '/login';
-    redirect(loginUrl);
+    redirect('/login');
   }
 
   // Check if this user is a fisio owner or employee
