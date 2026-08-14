@@ -12,7 +12,7 @@ const MUSCLE_GROUPS = ['pecho', 'hombros', 'espalda', 'piernas', 'gluteos', 'cor
 const SHORT_DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
 async function uploadExerciseFile(file: File): Promise<string> {
-  const urlRes = await fetch('/api/fisio/exercises/upload-url', {
+  const urlRes = await fetch('/api/gym/exercises/upload-url', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ filename: file.name, contentType: file.type }),
@@ -122,7 +122,7 @@ export function ManualRoutineBuilder({
 
     setLoadingEx(true);
     try {
-      const res = await fetch(`/api/fisio/exercises?client_id=${clientId}`);
+      const res = await fetch(`/api/gym/exercises?client_id=${clientId}`);
       if (!res.ok) throw new Error('Error al cargar ejercicios');
       const { exercises: list } = await res.json() as { exercises: ExerciseWithFlags[] };
       setExercises(list);
@@ -196,7 +196,7 @@ export function ManualRoutineBuilder({
     try {
       const url = await uploadExerciseFile(file);
 
-      const patchRes = await fetch(`/api/fisio/exercises/${exId}`, {
+      const patchRes = await fetch(`/api/gym/exercises/${exId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ gif_url: url }),
@@ -245,7 +245,7 @@ export function ManualRoutineBuilder({
     if (!customDraft.nombre.trim()) { toast.error('El nombre es requerido'); return; }
     setSavingCustom(true);
     try {
-      const res = await fetch('/api/fisio/exercises/custom', {
+      const res = await fetch('/api/gym/exercises/custom', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(customDraft),
@@ -340,7 +340,7 @@ export function ManualRoutineBuilder({
 
       const isEdit = mode === 'edit' && existingRoutine;
       const res = await fetch(
-        isEdit ? `/api/fisio/routines/${existingRoutine!.id}` : '/api/fisio/routines/manual',
+        isEdit ? `/api/gym/routines/${existingRoutine!.id}` : '/api/gym/routines/manual',
         {
           method: isEdit ? 'PATCH' : 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -413,7 +413,7 @@ export function ManualRoutineBuilder({
             {step === 1 && (
               <div className="px-6 py-6 space-y-6">
                 <div>
-                  <p className="mb-3 text-sm font-medium">¿Qué días entrenará el paciente?</p>
+                  <p className="mb-3 text-sm font-medium">¿Qué días entrenará el cliente?</p>
                   <div className="flex flex-wrap gap-2">
                     {SHORT_DAYS.map((label, i) => (
                       <button

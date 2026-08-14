@@ -28,7 +28,7 @@ export default async function ProtectedPortalLayout({ children }: { children: Re
     <div className="min-h-screen bg-background">
       <header className="border-b px-6 py-4 flex items-center justify-between">
         <span className="font-semibold text-sm">
-          fisioterapia<span className="text-primary">.</span>roda.ink
+          gym<span className="text-primary">.</span>roda.ink
         </span>
         <form action="/api/auth/signout" method="post">
           <button

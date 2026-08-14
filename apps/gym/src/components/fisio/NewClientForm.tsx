@@ -3,19 +3,23 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, ChevronRight, ChevronLeft, Check, Search, UserPlus, Link } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Check, Search, UserPlus, Link } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const ZONAS = [
-  'Columna cervical', 'Columna lumbar', 'Hombro derecho', 'Hombro izquierdo',
-  'Rodilla derecha', 'Rodilla izquierda', 'Cadera derecha', 'Cadera izquierda',
-  'Tobillo derecho', 'Tobillo izquierdo', 'Muneca', 'Codo',
-  'Cabeza / cuello', 'Pecho / costillas', 'Abdomen', 'Pie derecho', 'Pie izquierdo',
+const DIAS_LABEL = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+
+const OBJETIVOS = [
+  { value: 'hipertrofia', label: 'Hipertrofia muscular' },
+  { value: 'perdida_grasa', label: 'Pérdida de grasa' },
+  { value: 'fuerza', label: 'Ganar fuerza' },
+  { value: 'resistencia', label: 'Resistencia y cardio' },
+  { value: 'rendimiento', label: 'Rendimiento deportivo' },
 ];
 
-const MECANICA_OPTS = ['al mover', 'al cargar peso', 'en reposo', 'al estirar', 'al caminar', 'al subir escaleras'];
-
-const DIAS_LABEL = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const ZONAS_MEJORAR = [
+  'Pecho', 'Hombros', 'Espalda', 'Bíceps', 'Tríceps',
+  'Abdomen', 'Glúteos', 'Piernas', 'Pantorrillas', 'General',
+];
 
 interface RodaCustomer {
   id: string;
@@ -24,26 +28,14 @@ interface RodaCustomer {
   email: string | null;
 }
 
-interface PathologyEntry {
-  nombre: string;
-  zona_corporal: string;
-  notas: string;
-}
-
-interface PainEntry {
-  zona_corporal: string;
-  mecanica: string;
-  nivel: number;
-}
-
-type Step = 'vincular' | 'datos' | 'patologias' | 'dolor' | 'plan';
+type Step = 'vincular' | 'datos' | 'entrenamiento' | 'salud' | 'plan';
 
 const STEP_LABELS: Record<Step, string> = {
   vincular: 'Vincular RODA',
   datos: 'Datos básicos',
-  patologias: 'Patologías',
-  dolor: 'Mapa de dolor',
-  plan: 'Plan',
+  entrenamiento: 'Entrenamiento',
+  salud: 'Salud',
+  plan: 'Horario',
 };
 
 export function NewClientForm() {
@@ -51,7 +43,7 @@ export function NewClientForm() {
   const [step, setStep] = useState<Step>('vincular');
   const [loading, setLoading] = useState(false);
 
-  // Step 0: Vincular cliente RODA
+  // Step vincular
   const [rodaCustomerId, setRodaCustomerId] = useState<string | null>(null);
   const [rodaLinkedName, setRodaLinkedName] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -59,52 +51,46 @@ export function NewClientForm() {
   const [isSearching, setIsSearching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Step 1: Datos básicos
+  // Step datos
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [telefono, setTelefono] = useState('');
+  const [sexo, setSexo] = useState<'masculino' | 'femenino' | 'otro' | ''>('');
   const [notas, setNotas] = useState('');
 
-  // Step 2: Patologías
-  const [pathologies, setPathologies] = useState<PathologyEntry[]>([]);
-  const [newPath, setNewPath] = useState<PathologyEntry>({ nombre: '', zona_corporal: ZONAS[0], notas: '' });
+  // Step entrenamiento
+  const [nivelEntrenamiento, setNivelEntrenamiento] = useState<'novato' | 'intermedio' | 'avanzado'>('novato');
+  const [objetivoPrincipal, setObjetivoPrincipal] = useState('hipertrofia');
+  const [tiempoEntrenando, setTiempoEntrenando] = useState('');
+  const [deporteAlterno, setDeporteAlterno] = useState('');
 
-  // Step 3: Dolor
-  const [painEntries, setPainEntries] = useState<PainEntry[]>([]);
-  const [newPain, setNewPain] = useState<PainEntry>({ zona_corporal: ZONAS[0], mecanica: MECANICA_OPTS[0], nivel: 5 });
+  // Step salud
+  const [usaEsteroides, setUsaEsteroides] = useState(false);
+  const [problemaCardiovascular, setProblemaCardiovascular] = useState('');
+  const [lesionActual, setLesionActual] = useState('');
+  const [zonaAMejorar, setZonaAMejorar] = useState('');
 
-  // Step 4: Plan
-  const [nivelFisico, setNivelFisico] = useState<'principiante' | 'intermedio' | 'avanzado'>('principiante');
-  const [objetivo, setObjetivo] = useState('rehabilitacion');
+  // Step plan
+  const [horarioLaboral, setHorarioLaboral] = useState('');
+  const [horaDespertar, setHoraDespertar] = useState('');
+  const [horaDormir, setHoraDormir] = useState('');
+  const [horaEntrenar, setHoraEntrenar] = useState('');
   const [dias, setDias] = useState<number[]>([]);
 
-  // Debounced search against RODA customers
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    if (search.trim().length < 2) {
-      setSearchResults([]);
-      return;
-    }
-
+    if (search.trim().length < 2) { setSearchResults([]); return; }
     debounceRef.current = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const res = await fetch(`/api/fisio/roda-customers?search=${encodeURIComponent(search.trim())}`);
+        const res = await fetch(`/api/gym/roda-customers?search=${encodeURIComponent(search.trim())}`);
         if (res.ok) {
           const { customers } = await res.json();
           setSearchResults(customers ?? []);
         }
-      } catch {
-        // silently ignore search errors
-      } finally {
-        setIsSearching(false);
-      }
+      } catch { /* ignore */ } finally { setIsSearching(false); }
     }, 300);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [search]);
 
   const handleSelectRodaCustomer = (customer: RodaCustomer) => {
@@ -118,23 +104,6 @@ export function NewClientForm() {
     setStep('datos');
   };
 
-  const handleSkipLink = () => {
-    setRodaCustomerId(null);
-    setRodaLinkedName(null);
-    setStep('datos');
-  };
-
-  const addPathology = () => {
-    if (!newPath.nombre.trim()) return;
-    setPathologies((prev) => [...prev, { ...newPath }]);
-    setNewPath({ nombre: '', zona_corporal: ZONAS[0], notas: '' });
-  };
-
-  const addPain = () => {
-    setPainEntries((prev) => [...prev, { ...newPain }]);
-    setNewPain({ zona_corporal: ZONAS[0], mecanica: MECANICA_OPTS[0], nivel: 5 });
-  };
-
   const toggleDia = (d: number) =>
     setDias((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
 
@@ -144,16 +113,28 @@ export function NewClientForm() {
 
     setLoading(true);
     try {
-      const res = await fetch('/api/fisio/clients', {
+      const res = await fetch('/api/gym/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nombre, email, telefono, notas,
-          nivel_fisico: nivelFisico,
-          objetivo,
+          nombre,
+          email: email || null,
+          telefono: telefono || null,
+          notas: notas || null,
+          sexo: sexo || null,
+          nivel_entrenamiento: nivelEntrenamiento,
+          objetivo_principal: objetivoPrincipal,
+          tiempo_entrenando: tiempoEntrenando || null,
+          deporte_alterno: deporteAlterno || null,
+          usa_esteroides: usaEsteroides,
+          problema_cardiovascular: problemaCardiovascular || null,
+          lesion_actual: lesionActual || null,
+          zona_a_mejorar: zonaAMejorar || null,
+          horario_laboral: horarioLaboral || null,
+          hora_despertar: horaDespertar || null,
+          hora_dormir: horaDormir || null,
+          hora_entrenar: horaEntrenar || null,
           dias_disponibles: dias,
-          pathologies,
-          pain_entries: painEntries,
           roda_customer_id: rodaCustomerId,
         }),
       });
@@ -164,8 +145,8 @@ export function NewClientForm() {
       }
 
       const { client } = await res.json();
-      toast.success('Paciente creado');
-      router.push(`/pacientes/${client.id}`);
+      toast.success('Cliente creado');
+      router.push(`/clientes/${client.id}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error inesperado');
     } finally {
@@ -173,7 +154,7 @@ export function NewClientForm() {
     }
   };
 
-  const steps: Step[] = ['vincular', 'datos', 'patologias', 'dolor', 'plan'];
+  const steps: Step[] = ['vincular', 'datos', 'entrenamiento', 'salud', 'plan'];
   const stepIndex = steps.indexOf(step);
 
   return (
@@ -196,14 +177,12 @@ export function NewClientForm() {
         <span className="ml-2 text-sm text-muted-foreground">{STEP_LABELS[step]}</span>
       </div>
 
-      {/* Step 0: Vincular RODA */}
+      {/* Step vincular */}
       {step === 'vincular' && (
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Busca si el paciente ya existe como cliente en RODA para vincular sus datos automáticamente.
+            Busca si el cliente ya existe en RODA para vincular sus datos automáticamente.
           </p>
-
-          {/* Search input */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <input
@@ -219,8 +198,6 @@ export function NewClientForm() {
               </span>
             )}
           </div>
-
-          {/* Results */}
           {searchResults.length > 0 && (
             <ul className="divide-y rounded-md border overflow-hidden">
               {searchResults.map((c) => (
@@ -240,29 +217,26 @@ export function NewClientForm() {
               ))}
             </ul>
           )}
-
           {search.trim().length >= 2 && !isSearching && searchResults.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-2">
               No se encontraron clientes con ese criterio.
             </p>
           )}
-
-          {/* Skip */}
           <div className="pt-2 border-t">
             <Button
               variant="outline"
               size="sm"
               className="w-full gap-2"
-              onClick={handleSkipLink}
+              onClick={() => { setRodaCustomerId(null); setRodaLinkedName(null); setStep('datos'); }}
             >
               <UserPlus className="h-4 w-4" />
-              Crear paciente nuevo (sin vincular)
+              Crear cliente nuevo (sin vincular)
             </Button>
           </div>
         </div>
       )}
 
-      {/* Step 1: Datos */}
+      {/* Step datos */}
       {step === 'datos' && (
         <div className="space-y-4">
           {rodaLinkedName && (
@@ -271,11 +245,7 @@ export function NewClientForm() {
               <span>Vinculado a cliente RODA: <strong>{rodaLinkedName}</strong></span>
               <button
                 className="ml-auto text-xs text-muted-foreground hover:text-foreground underline"
-                onClick={() => {
-                  setRodaCustomerId(null);
-                  setRodaLinkedName(null);
-                  setStep('vincular');
-                }}
+                onClick={() => { setRodaCustomerId(null); setRodaLinkedName(null); setStep('vincular'); }}
               >
                 Cambiar
               </button>
@@ -286,7 +256,7 @@ export function NewClientForm() {
             <input
               className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background"
               value={nombre} onChange={(e) => setNombre(e.target.value)}
-              placeholder="Nombre del paciente"
+              placeholder="Nombre del cliente"
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -308,132 +278,43 @@ export function NewClientForm() {
             </div>
           </div>
           <div>
+            <label className="block text-sm font-medium mb-2">Sexo</label>
+            <div className="flex gap-2">
+              {(['masculino', 'femenino', 'otro'] as const).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setSexo(s)}
+                  className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors capitalize
+                    ${sexo === s ? 'border-primary bg-primary/10 text-primary' : 'hover:bg-muted'}`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
             <label className="block text-sm font-medium mb-1">Notas generales</label>
             <textarea
               className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background resize-none"
-              rows={3} value={notas} onChange={(e) => setNotas(e.target.value)}
-              placeholder="Antecedentes relevantes…"
+              rows={2} value={notas} onChange={(e) => setNotas(e.target.value)}
+              placeholder="Observaciones relevantes…"
             />
           </div>
         </div>
       )}
 
-      {/* Step 2: Patologías */}
-      {step === 'patologias' && (
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Registra las patologías o condiciones médicas del paciente.
-          </p>
-          {pathologies.length > 0 && (
-            <ul className="space-y-2">
-              {pathologies.map((p, i) => (
-                <li key={i} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
-                  <span className="flex-1"><strong>{p.nombre}</strong> — {p.zona_corporal}</span>
-                  <button onClick={() => setPathologies((prev) => prev.filter((_, j) => j !== i))}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="rounded-md border p-4 space-y-3">
-            <input
-              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background"
-              value={newPath.nombre}
-              onChange={(e) => setNewPath((p) => ({ ...p, nombre: e.target.value }))}
-              placeholder="Nombre de la patología (ej: Hernia discal L4-L5)"
-            />
-            <select
-              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background"
-              value={newPath.zona_corporal}
-              onChange={(e) => setNewPath((p) => ({ ...p, zona_corporal: e.target.value }))}
-            >
-              {ZONAS.map((z) => <option key={z}>{z}</option>)}
-            </select>
-            <Button type="button" variant="outline" size="sm" onClick={addPathology} className="w-full">
-              <Plus className="h-4 w-4" /> Agregar patología
-            </Button>
-          </div>
-          {pathologies.length === 0 && (
-            <p className="text-xs text-muted-foreground italic text-center">
-              Puedes continuar sin patologías si el paciente no tiene condiciones médicas.
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Step 3: Mapa de dolor */}
-      {step === 'dolor' && (
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Registra las zonas de dolor activo del paciente (escala 1–10).
-          </p>
-          {painEntries.length > 0 && (
-            <ul className="space-y-2">
-              {painEntries.map((p, i) => (
-                <li key={i} className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm">
-                  <span className="flex-1">
-                    <strong>{p.zona_corporal}</strong> — {p.mecanica} — nivel {p.nivel}/10
-                  </span>
-                  <button onClick={() => setPainEntries((prev) => prev.filter((_, j) => j !== i))}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="rounded-md border p-4 space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium mb-1">Zona corporal</label>
-                <select
-                  className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background"
-                  value={newPain.zona_corporal}
-                  onChange={(e) => setNewPain((p) => ({ ...p, zona_corporal: e.target.value }))}
-                >
-                  {ZONAS.map((z) => <option key={z}>{z}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium mb-1">Aparece…</label>
-                <select
-                  className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background"
-                  value={newPain.mecanica}
-                  onChange={(e) => setNewPain((p) => ({ ...p, mecanica: e.target.value }))}
-                >
-                  {MECANICA_OPTS.map((m) => <option key={m}>{m}</option>)}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium mb-2">
-                Intensidad: <span className="font-bold">{newPain.nivel}/10</span>
-              </label>
-              <input
-                type="range" min={1} max={10} value={newPain.nivel}
-                onChange={(e) => setNewPain((p) => ({ ...p, nivel: Number(e.target.value) }))}
-                className="w-full accent-primary"
-              />
-            </div>
-            <Button type="button" variant="outline" size="sm" onClick={addPain} className="w-full">
-              <Plus className="h-4 w-4" /> Agregar zona de dolor
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 4: Plan */}
-      {step === 'plan' && (
+      {/* Step entrenamiento */}
+      {step === 'entrenamiento' && (
         <div className="space-y-5">
           <div>
-            <label className="block text-sm font-medium mb-2">Nivel físico</label>
+            <label className="block text-sm font-medium mb-2">Nivel de entrenamiento</label>
             <div className="flex gap-2">
-              {(['principiante', 'intermedio', 'avanzado'] as const).map((n) => (
+              {(['novato', 'intermedio', 'avanzado'] as const).map((n) => (
                 <button
                   key={n}
-                  onClick={() => setNivelFisico(n)}
+                  onClick={() => setNivelEntrenamiento(n)}
                   className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors capitalize
-                    ${nivelFisico === n ? 'border-primary bg-primary/10 text-primary' : 'hover:bg-muted'}`}
+                    ${nivelEntrenamiento === n ? 'border-primary bg-primary/10 text-primary' : 'hover:bg-muted'}`}
                 >
                   {n}
                 </button>
@@ -442,16 +323,130 @@ export function NewClientForm() {
           </div>
           <div>
             <label className="block text-sm font-medium mb-2">Objetivo principal</label>
-            <select
+            <div className="space-y-2">
+              {OBJETIVOS.map((o) => (
+                <button
+                  key={o.value}
+                  onClick={() => setObjetivoPrincipal(o.value)}
+                  className={`w-full text-left rounded-md border px-3 py-2 text-sm font-medium transition-colors
+                    ${objetivoPrincipal === o.value ? 'border-primary bg-primary/10 text-primary' : 'hover:bg-muted'}`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">¿Cuánto tiempo lleva entrenando?</label>
+            <input
               className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background"
-              value={objetivo} onChange={(e) => setObjetivo(e.target.value)}
-            >
-              <option value="rehabilitacion">Rehabilitación y fisioterapia</option>
-              <option value="movilidad">Mejorar movilidad y flexibilidad</option>
-              <option value="fuerza">Ganar fuerza</option>
-              <option value="cardio">Resistencia cardiovascular</option>
-              <option value="perder_peso">Perder peso</option>
-            </select>
+              value={tiempoEntrenando} onChange={(e) => setTiempoEntrenando(e.target.value)}
+              placeholder="Ej: 2 años, 6 meses, nunca…"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Deporte alterno (opcional)</label>
+            <input
+              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background"
+              value={deporteAlterno} onChange={(e) => setDeporteAlterno(e.target.value)}
+              placeholder="Ej: fútbol, ciclismo, natación…"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Step salud */}
+      {step === 'salud' && (
+        <div className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium mb-2">¿Usa esteroides anabólicos?</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setUsaEsteroides(true)}
+                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors
+                  ${usaEsteroides ? 'border-primary bg-primary/10 text-primary' : 'hover:bg-muted'}`}
+              >
+                Sí
+              </button>
+              <button
+                onClick={() => setUsaEsteroides(false)}
+                className={`flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors
+                  ${!usaEsteroides ? 'border-primary bg-primary/10 text-primary' : 'hover:bg-muted'}`}
+              >
+                No
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Problema cardiovascular (opcional)</label>
+            <input
+              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background"
+              value={problemaCardiovascular} onChange={(e) => setProblemaCardiovascular(e.target.value)}
+              placeholder="Ej: hipertensión, arritmia…"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Lesión actual (opcional)</label>
+            <input
+              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background"
+              value={lesionActual} onChange={(e) => setLesionActual(e.target.value)}
+              placeholder="Ej: tendinitis hombro derecho…"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">Zona a mejorar (opcional)</label>
+            <div className="flex flex-wrap gap-2">
+              {ZONAS_MEJORAR.map((z) => (
+                <button
+                  key={z}
+                  onClick={() => setZonaAMejorar((prev) => prev === z ? '' : z)}
+                  className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors
+                    ${zonaAMejorar === z ? 'border-primary bg-primary/10 text-primary' : 'hover:bg-muted'}`}
+                >
+                  {z}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Step plan */}
+      {step === 'plan' && (
+        <div className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium mb-1">Horario laboral (opcional)</label>
+            <input
+              className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background"
+              value={horarioLaboral} onChange={(e) => setHorarioLaboral(e.target.value)}
+              placeholder="Ej: 9am–6pm, turnos rotativos…"
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Se despierta</label>
+              <input
+                type="time"
+                className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background"
+                value={horaDespertar} onChange={(e) => setHoraDespertar(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Se duerme</label>
+              <input
+                type="time"
+                className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background"
+                value={horaDormir} onChange={(e) => setHoraDormir(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Entrena</label>
+              <input
+                type="time"
+                className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-background"
+                value={horaEntrenar} onChange={(e) => setHoraEntrenar(e.target.value)}
+              />
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium mb-2">
@@ -501,7 +496,7 @@ export function NewClientForm() {
           </Button>
         ) : (
           <Button size="sm" onClick={handleSubmit} disabled={loading}>
-            {loading ? 'Guardando…' : 'Crear paciente'}
+            {loading ? 'Guardando…' : 'Crear cliente'}
             {!loading && <Check className="h-4 w-4" />}
           </Button>
         )}

@@ -10,22 +10,18 @@ import { ManualRoutineBuilder } from '@/components/fisio/ManualRoutineBuilder';
 import { RoutineView } from '@/components/fisio/RoutineView';
 import { ClinicalHistory } from '@/components/fisio/ClinicalHistory';
 import { PatientGoals } from '@/components/fisio/PatientGoals';
-import { PatientPathologies } from '@/components/fisio/PatientPathologies';
-import { PatientPainMap } from '@/components/fisio/PatientPainMap';
-import type { PhysioClient, Pathology, PainEntry, PhysioRoutine } from '@/lib/fisio-types';
+import type { GymClient, PhysioRoutine } from '@/lib/fisio-types';
 import { ChevronLeft, Activity } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
 interface ClientDetail {
-  client: PhysioClient;
-  pathologies: Pathology[];
-  pain_map: (PainEntry & { id: string; created_at: string })[];
+  client: GymClient;
   routines: PhysioRoutine[];
 }
 
 const nivelColor: Record<string, string> = {
-  principiante: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  novato: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
   intermedio: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
   avanzado: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
 };
@@ -38,21 +34,21 @@ export default function ClientDetailPage() {
   const [activeRoutine, setActiveRoutine] = useState<PhysioRoutine | null>(null);
 
   useEffect(() => {
-    fetch(`/api/fisio/clients/${id}`)
+    fetch(`/api/gym/clients/${id}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.statusText)))
       .then((d: ClientDetail) => {
         setDetail(d);
         setActiveRoutine(d.routines[0] ?? null);
       })
-      .catch(() => toast.error('Error al cargar el paciente'))
+      .catch(() => toast.error('Error al cargar el cliente'))
       .finally(() => setLoading(false));
   }, [id]);
 
   const handleDelete = async () => {
-    if (!confirm('¿Eliminar este paciente? Esta acción no se puede deshacer.')) return;
-    const res = await fetch(`/api/fisio/clients/${id}`, { method: 'DELETE' });
+    if (!confirm('¿Eliminar este cliente? Esta acción no se puede deshacer.')) return;
+    const res = await fetch(`/api/gym/clients/${id}`, { method: 'DELETE' });
     if (res.ok) {
-      toast.success('Paciente eliminado');
+      toast.success('Cliente eliminado');
       router.push('/dashboard');
     } else {
       toast.error('Error al eliminar');
@@ -61,14 +57,14 @@ export default function ClientDetailPage() {
 
   if (loading) {
     return (
-      <div className="p-6 text-center text-muted-foreground">Cargando paciente…</div>
+      <div className="p-6 text-center text-muted-foreground">Cargando cliente…</div>
     );
   }
 
   if (!detail) {
     return (
       <div className="p-6 text-center">
-        <p className="text-muted-foreground">Paciente no encontrado.</p>
+        <p className="text-muted-foreground">Cliente no encontrado.</p>
         <Link href="/dashboard" className="text-sm text-primary mt-2 inline-block">
           Volver al dashboard
         </Link>
@@ -76,7 +72,7 @@ export default function ClientDetailPage() {
     );
   }
 
-  const { client, pathologies, pain_map, routines } = detail;
+  const { client, routines } = detail;
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -94,12 +90,14 @@ export default function ClientDetailPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{client.nombre}</h1>
           <div className="mt-2 flex items-center gap-2 flex-wrap">
-            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${nivelColor[client.nivel_fisico] ?? ''}`}>
-              {client.nivel_fisico}
+            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${nivelColor[client.nivel_entrenamiento] ?? ''}`}>
+              {client.nivel_entrenamiento}
             </span>
-            <Badge variant="outline" className="text-xs">
-              {client.objetivo.replace('_', ' ')}
-            </Badge>
+            {client.objetivo_principal && (
+              <Badge variant="outline" className="text-xs">
+                {client.objetivo_principal.replace(/_/g, ' ')}
+              </Badge>
+            )}
             <span className="text-xs text-muted-foreground">
               {client.dias_disponibles.length} día{client.dias_disponibles.length !== 1 ? 's' : ''}/semana
             </span>
@@ -115,13 +113,7 @@ export default function ClientDetailPage() {
         </Button>
       </div>
 
-      {/* Info clínica */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <PatientPathologies clientId={id} initial={pathologies} />
-        <PatientPainMap clientId={id} initial={pain_map} />
-      </div>
-
-      {/* Historial clínico */}
+      {/* Mediciones */}
       <ClinicalHistory clientId={id} />
 
       {/* Objetivos */}
@@ -211,7 +203,7 @@ export default function ClientDetailPage() {
               <Activity className="h-10 w-10 text-muted-foreground" />
               <p className="font-medium">Sin plan de ejercicios</p>
               <p className="text-sm text-muted-foreground">
-                Genera un plan personalizado con IA basado en el perfil del paciente.
+                Genera un plan personalizado con IA basado en el perfil del cliente.
               </p>
             </div>
           )}

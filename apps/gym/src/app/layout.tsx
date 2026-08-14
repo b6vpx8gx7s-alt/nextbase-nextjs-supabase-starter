@@ -3,8 +3,8 @@ import './globals.css';
 import { Toaster } from 'react-hot-toast';
 
 export const metadata: Metadata = {
-  title: 'Fisioterapia — RODA',
-  description: 'Planes de fisioterapia adaptados con IA',
+  title: 'Gym — RODA',
+  description: 'Planes de entrenamiento personalizados con IA',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

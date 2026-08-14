@@ -11,7 +11,7 @@ import type { User } from '@supabase/supabase-js';
 type NavItem = { title: string; url: string; icon: typeof Users; matchPaths?: string[] };
 
 const navItems: NavItem[] = [
-  { title: 'Pacientes', url: '/dashboard', icon: Users, matchPaths: ['/dashboard', '/pacientes'] },
+  { title: 'Clientes', url: '/dashboard', icon: Users, matchPaths: ['/dashboard', '/clientes'] },
 ];
 
 export function AppSidebarContent({ user }: { user: User }) {
@@ -52,7 +52,7 @@ export function AppSidebarContent({ user }: { user: User }) {
             <span className="font-bold text-sm" style={{ fontFamily: 'Sora, sans-serif', letterSpacing: '-0.02em' }}>
               RODA<span style={{ color: '#3DD9B0' }}>.</span>ink
             </span>
-            <span className="text-[11px] text-muted-foreground">Fisioterapia</span>
+            <span className="text-[11px] text-muted-foreground">Gym</span>
           </div>
         </Link>
       </div>

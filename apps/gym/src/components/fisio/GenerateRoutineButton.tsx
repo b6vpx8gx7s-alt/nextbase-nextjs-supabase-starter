@@ -18,7 +18,7 @@ export function GenerateRoutineButton({ clientId, onGenerated }: Props) {
     setLoading(true);
     const toastId = toast.loading('Generando plan con IA…');
     try {
-      const res = await fetch('/api/fisio/routines/generate', {
+      const res = await fetch('/api/gym/routines/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ client_id: clientId }),

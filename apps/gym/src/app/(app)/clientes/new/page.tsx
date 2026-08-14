@@ -3,7 +3,7 @@ import { NewClientForm } from '@/components/fisio/NewClientForm';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
 
-export default function NewPatientPage() {
+export default function NewClientPage() {
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <Link
@@ -16,9 +16,9 @@ export default function NewPatientPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Nuevo paciente</CardTitle>
+          <CardTitle>Nuevo cliente</CardTitle>
           <CardDescription>
-            Completa los datos del paciente para generar planes adaptados con IA.
+            Completa los datos del cliente para generar planes adaptados con IA.
           </CardDescription>
         </CardHeader>
         <CardContent>

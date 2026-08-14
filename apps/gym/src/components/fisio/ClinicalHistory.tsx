@@ -83,14 +83,14 @@ export function ClinicalHistory({ clientId }: Props) {
 
   useEffect(() => {
     Promise.all([
-      fetch(`/api/fisio/measurements?client_id=${clientId}`).then((r) => r.json()),
-      fetch('/api/fisio/measurement-types').then((r) => r.json()),
+      fetch(`/api/gym/measurements?client_id=${clientId}`).then((r) => r.json()),
+      fetch('/api/gym/measurement-types').then((r) => r.json()),
     ])
       .then(([mRes, tRes]) => {
         setMeasurements(mRes.measurements ?? []);
         setTypes(tRes.types ?? []);
       })
-      .catch(() => toast.error('Error al cargar historial clínico'))
+      .catch(() => toast.error('Error al cargar mediciones'))
       .finally(() => setLoading(false));
   }, [clientId]);
 
@@ -121,7 +121,7 @@ export function ClinicalHistory({ clientId }: Props) {
     }
     setCreatingCustom(true);
     try {
-      const res = await fetch('/api/fisio/measurement-types/custom', {
+      const res = await fetch('/api/gym/measurement-types/custom', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -172,7 +172,7 @@ export function ClinicalHistory({ clientId }: Props) {
 
     setSaving(true);
     try {
-      const res = await fetch('/api/fisio/measurements', {
+      const res = await fetch('/api/gym/measurements', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -224,7 +224,7 @@ export function ClinicalHistory({ clientId }: Props) {
           <div className="flex items-center justify-between gap-4">
             <CardTitle className="flex items-center gap-2">
               <Activity className="h-5 w-5" />
-              Historial clínico
+              Mediciones y progreso
             </CardTitle>
             <Button variant="outline" size="sm" onClick={openModal}>
               <Plus className="h-4 w-4" />

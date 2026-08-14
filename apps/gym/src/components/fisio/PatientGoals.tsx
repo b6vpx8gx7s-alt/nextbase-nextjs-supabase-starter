@@ -38,7 +38,7 @@ export function PatientGoals({ clientId }: Props) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/fisio/goals?client_id=${clientId}`)
+    fetch(`/api/gym/goals?client_id=${clientId}`)
       .then((r) => r.json())
       .then((d) => setGoals(d.goals ?? []))
       .catch(() => toast.error('Error al cargar objetivos'))
@@ -58,7 +58,7 @@ export function PatientGoals({ clientId }: Props) {
     }
     setSaving(true);
     try {
-      const res = await fetch('/api/fisio/goals', {
+      const res = await fetch('/api/gym/goals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -86,7 +86,7 @@ export function PatientGoals({ clientId }: Props) {
     const nuevoEstado = goal.estado === 'completado' ? 'activo' : 'completado';
     setToggling(goal.id);
     try {
-      const res = await fetch(`/api/fisio/goals/${goal.id}`, {
+      const res = await fetch(`/api/gym/goals/${goal.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ estado: nuevoEstado }),
