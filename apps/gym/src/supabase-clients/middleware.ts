@@ -35,7 +35,7 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isProtected =
     pathname.startsWith('/dashboard') ||
-    pathname.startsWith('/pacientes') ||
+    pathname.startsWith('/clientes') ||
     (pathname.startsWith('/portal') && pathname !== '/portal/complete-invite');
 
   if (!user && isProtected) {

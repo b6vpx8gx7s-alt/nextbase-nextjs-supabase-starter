@@ -13,21 +13,26 @@ async function AuthGuard({ children }: { children: ReactNode }) {
     redirect('/login');
   }
 
-  const [{ data: profile }, { data: employee }] = await Promise.all([
+  const [profileRes, employeeRes] = await Promise.all([
     supabase.from('profiles').select('business_id').eq('user_id', user!.id).maybeSingle(),
     supabase.from('employee_auth').select('employee_id').eq('user_id', user!.id).maybeSingle(),
   ]);
 
-  const isGymUser = !!profile?.business_id || !!employee?.employee_id;
+  console.log('[AuthGuard] user.id:', user!.id);
+  console.log('[AuthGuard] profileRes.data:', profileRes.data, '| error:', profileRes.error?.message ?? null);
+  console.log('[AuthGuard] employeeRes.data:', employeeRes.data, '| error:', employeeRes.error?.message ?? null);
+
+  const isGymUser = !!profileRes.data?.business_id || !!employeeRes.data?.employee_id;
+  console.log('[AuthGuard] isGymUser:', isGymUser, '| business_id:', profileRes.data?.business_id ?? null);
 
   if (!isGymUser) {
-    // Not a gym owner/employee — if they're a linked client, send them to /portal
     const { data: clientLink } = await supabase
       .from('gym_client_users')
       .select('gym_client_id')
       .eq('auth_user_id', user!.id)
       .maybeSingle();
 
+    console.log('[AuthGuard] → not a gym user, clientLink:', clientLink, '| redirecting to:', clientLink ? '/portal' : '/login');
     redirect(clientLink ? '/portal' : '/login');
   }
 
