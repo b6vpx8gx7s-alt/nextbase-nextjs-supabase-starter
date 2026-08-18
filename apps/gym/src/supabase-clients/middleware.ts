@@ -30,12 +30,7 @@ export async function updateSession(request: NextRequest) {
 
   const {
     data: { user },
-    error: getUserError,
   } = await supabase.auth.getUser();
-
-  const allCookies = request.cookies.getAll();
-  console.log('[gym middleware] cookies count:', allCookies.length, '| cookie names:', allCookies.map(c => c.name).join(', '));
-  console.log('[gym middleware] getUser result — user:', user?.id ?? 'null', '| error:', getUserError?.message ?? 'none');
 
   const pathname = request.nextUrl.pathname;
   const isProtected =
