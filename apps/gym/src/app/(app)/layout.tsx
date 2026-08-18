@@ -10,6 +10,12 @@ async function AuthGuard({ children }: { children: ReactNode }) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  console.log('[AuthGuard] getUser() result:', {
+    hasUser: !!user,
+    userId: user?.id,
+    userEmail: user?.email,
+  });
+
   if (!user) {
     redirect('/login');
   }
@@ -21,9 +27,17 @@ async function AuthGuard({ children }: { children: ReactNode }) {
     admin.from('employee_auth').select('employee_id').eq('user_id', user!.id).maybeSingle(),
   ]);
 
-  console.log('[AuthGuard] user.id:', user!.id);
-  console.log('[AuthGuard] profileRes.data:', profileRes.data, '| error:', profileRes.error?.message ?? null);
-  console.log('[AuthGuard] employeeRes.data:', employeeRes.data, '| error:', employeeRes.error?.message ?? null);
+  console.log('[AuthGuard] profiles query:', {
+    error: profileRes.error?.message,
+    hasData: !!profileRes.data,
+    businessId: profileRes.data?.business_id,
+  });
+
+  console.log('[AuthGuard] employee_auth query:', {
+    error: employeeRes.error?.message,
+    hasData: !!employeeRes.data,
+    employeeId: employeeRes.data?.employee_id,
+  });
 
   const isGymUser = !!profileRes.data?.business_id || !!employeeRes.data?.employee_id;
   console.log('[AuthGuard] isGymUser:', isGymUser, '| business_id:', profileRes.data?.business_id ?? null);
