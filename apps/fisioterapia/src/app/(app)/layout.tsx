@@ -1,4 +1,5 @@
 import { createSupabaseClient } from '@/supabase-clients/server';
+import { createAdminClient } from '@/supabase-clients/admin';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { AppSidebar } from './app-sidebar';
@@ -13,17 +14,17 @@ async function AuthGuard({ children }: { children: ReactNode }) {
     redirect('/login');
   }
 
-  // Check if this user is a fisio owner or employee
+  // Use service-role client so RLS never silently blocks these reads.
+  const admin = createAdminClient();
   const [{ data: profile }, { data: employee }] = await Promise.all([
-    supabase.from('profiles').select('business_id').eq('user_id', user!.id).maybeSingle(),
-    supabase.from('employee_auth').select('employee_id').eq('user_id', user!.id).maybeSingle(),
+    admin.from('profiles').select('business_id').eq('user_id', user!.id).maybeSingle(),
+    admin.from('employee_auth').select('employee_id').eq('user_id', user!.id).maybeSingle(),
   ]);
 
   const isFisioUser = !!profile?.business_id || !!employee?.employee_id;
 
   if (!isFisioUser) {
-    // Not a fisio owner/employee — if they're a linked patient, send them to /portal
-    const { data: patientLink } = await supabase
+    const { data: patientLink } = await admin
       .from('physio_client_users')
       .select('physio_client_id')
       .eq('auth_user_id', user!.id)
