@@ -1,11 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { createClient } from '@/supabase-clients/client';
 
 export default function SSOPage() {
-  const router = useRouter();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const supabase = createClient();
 
@@ -27,7 +25,7 @@ export default function SSOPage() {
         // No tokens in hash — maybe the user navigated here directly
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          router.replace('/dashboard');
+          window.location.href = '/dashboard';
         } else {
           setErrorMsg('No se encontraron tokens de sesión en la URL.');
         }
@@ -51,7 +49,7 @@ export default function SSOPage() {
       // Clean the hash from the browser history
       window.history.replaceState(null, '', window.location.pathname);
 
-      router.replace('/dashboard');
+      window.location.href = '/dashboard';
     }
 
     handleSSO();
