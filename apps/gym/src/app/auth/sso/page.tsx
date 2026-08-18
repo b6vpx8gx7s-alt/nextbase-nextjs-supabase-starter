@@ -6,44 +6,62 @@ import { createClient } from '@/supabase-clients/client';
 
 export default function SSOPage() {
   const router = useRouter();
-  const [status, setStatus] = useState<'loading' | 'error'>('loading');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
-    let redirected = false;
+    async function handleSSO() {
+      // Parse tokens from the URL hash
+      const hash = window.location.hash.substring(1); // strip leading '#'
+      const params = new URLSearchParams(hash);
+      const accessToken = params.get('access_token');
+      const refreshToken = params.get('refresh_token');
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session && !redirected) {
-        redirected = true;
-        router.replace('/dashboard');
+      console.log('[SSO] hash params:', {
+        hasAccessToken: !!accessToken,
+        hasRefreshToken: !!refreshToken,
+        rawHash: hash.slice(0, 80) + (hash.length > 80 ? '…' : ''),
+      });
+
+      if (!accessToken || !refreshToken) {
+        // No tokens in hash — maybe the user navigated here directly
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          router.replace('/dashboard');
+        } else {
+          setErrorMsg('No se encontraron tokens de sesión en la URL.');
+        }
+        return;
       }
-    });
 
-    // Check if session was already picked up from hash
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session && !redirected) {
-        redirected = true;
-        router.replace('/dashboard');
+      // Explicitly set the session using the tokens from the hash
+      const { data, error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+
+      if (error) {
+        console.error('[SSO] setSession error:', error.message, error);
+        setErrorMsg(`setSession falló: ${error.message}`);
+        return;
       }
-    });
 
-    // Fallback: if no session established after 6s, go to login
-    const timeout = setTimeout(() => {
-      if (!redirected) {
-        setStatus('error');
-      }
-    }, 6000);
+      console.log('[SSO] setSession OK — user:', data.user?.id, '| expires_at:', data.session?.expires_at);
 
-    return () => {
-      subscription.unsubscribe();
-      clearTimeout(timeout);
-    };
+      // Clean the hash from the browser history
+      window.history.replaceState(null, '', window.location.pathname);
+
+      router.replace('/dashboard');
+    }
+
+    handleSSO();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (status === 'error') {
+  if (errorMsg) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', gap: 16 }}>
-        <p style={{ color: '#555' }}>No se pudo iniciar sesión automáticamente.</p>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', gap: 16, padding: 24 }}>
+        <p style={{ color: '#c00', fontWeight: 600 }}>No se pudo iniciar sesión automáticamente.</p>
+        <p style={{ color: '#666', fontSize: 13, maxWidth: 400, textAlign: 'center' }}>{errorMsg}</p>
         <a href="/login" style={{ color: '#1B8BA8', textDecoration: 'underline' }}>Ir al inicio de sesión</a>
       </div>
     );
