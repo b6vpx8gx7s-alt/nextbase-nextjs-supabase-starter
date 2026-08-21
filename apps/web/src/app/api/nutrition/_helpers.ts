@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { createAdminClient } from '@/supabase-clients/admin'
 
 export type UserContext = {
   userId: string
@@ -29,18 +30,32 @@ export async function createNutritionClient() {
 }
 
 // Returns the Supabase client and the resolved user context in one call.
-// Runs profile + employee_auth queries in parallel to minimize latency.
+// Auth is validated with the anon client; profile queries use the admin client to bypass RLS.
 export async function getClientAndContext() {
   const supabase = await createNutritionClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+  if (authError) {
+    console.error('[nutrition/_helpers] auth.getUser error:', authError.message)
+    return { supabase, ctx: null } as const
+  }
+
   if (!user) return { supabase, ctx: null } as const
 
+  const admin = createAdminClient()
   const [profileRes, employeeRes] = await Promise.all([
-    supabase.from('profiles').select('business_id').eq('user_id', user.id).maybeSingle(),
-    supabase.from('employee_auth').select('employee_id').eq('user_id', user.id).maybeSingle(),
+    admin.from('profiles').select('business_id').eq('user_id', user.id).maybeSingle(),
+    admin.from('employee_auth').select('employee_id').eq('user_id', user.id).maybeSingle(),
   ])
 
-  if (!profileRes.data?.business_id) return { supabase, ctx: null } as const
+  if (profileRes.error) {
+    console.error('[nutrition/_helpers] profiles query error:', profileRes.error.message, profileRes.error.code)
+  }
+
+  if (!profileRes.data?.business_id) {
+    console.error('[nutrition/_helpers] No business_id for user:', user.id)
+    return { supabase, ctx: null } as const
+  }
 
   const employeeId: string | null = employeeRes.data?.employee_id ?? null
 
