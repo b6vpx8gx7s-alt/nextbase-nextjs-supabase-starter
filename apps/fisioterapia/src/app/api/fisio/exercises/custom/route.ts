@@ -41,6 +41,8 @@ export async function POST(request: Request) {
         patron: 'personalizado',
         nivel: 'intermedio',
         equipo: 'ninguno',
+        business_id: ctx.businessId,
+        visibility: 'private',
       })
       .select('id, nombre, patron, grupo_muscular, nivel, equipo, descripcion_breve, gif_url')
       .single();

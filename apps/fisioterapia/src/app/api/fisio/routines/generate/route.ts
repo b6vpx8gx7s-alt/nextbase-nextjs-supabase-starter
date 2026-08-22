@@ -75,7 +75,7 @@ export async function POST(request: Request) {
       });
 
     // ── 3. Pre-filtro determinista ────────────────────────────
-    const safeExercises = await getSafeExercises(client_id, supabase);
+    const safeExercises = await getSafeExercises(client_id, supabase, ctx.businessId);
 
     if (safeExercises.length < 5) {
       return NextResponse.json(
