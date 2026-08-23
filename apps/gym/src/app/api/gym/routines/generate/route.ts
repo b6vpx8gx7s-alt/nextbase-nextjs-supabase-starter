@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     // ── 3. Pre-filtro determinista ────────────────────────────
     // getSafeExercises queries pathologies/pain_map; for gym clients those
     // tables return empty, so all exercises are considered safe.
-    const safeExercises = await getSafeExercises(client_id, supabase);
+    const safeExercises = await getSafeExercises(client_id, supabase, ctx.businessId);
 
     if (safeExercises.length < 5) {
       return NextResponse.json(

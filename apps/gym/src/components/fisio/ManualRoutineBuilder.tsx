@@ -66,6 +66,7 @@ export function ManualRoutineBuilder({
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [customDraft, setCustomDraft] = useState({ nombre: '', grupo_muscular: 'core', descripcion_breve: '', gif_url: '' });
   const [savingCustom, setSavingCustom] = useState(false);
+  const [suggestPrompt, setSuggestPrompt] = useState<{ id: string; nombre: string } | null>(null);
   const [uploadingGif, setUploadingGif] = useState(false);
   const [gifPreviewUrl, setGifPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -272,10 +273,24 @@ export function ManualRoutineBuilder({
       setCustomDraft({ nombre: '', grupo_muscular: 'core', descripcion_breve: '', gif_url: '' });
       setShowCustomForm(false);
       toast.success(`"${exercise.nombre}" agregado`);
+      setSuggestPrompt({ id: exercise.id, nombre: exercise.nombre });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error inesperado');
     } finally {
       setSavingCustom(false);
+    }
+  };
+
+  const handleSuggest = async () => {
+    if (!suggestPrompt) return;
+    const { id, nombre } = suggestPrompt;
+    setSuggestPrompt(null);
+    try {
+      const res = await fetch(`/api/gym/exercises/${id}/suggest`, { method: 'PATCH' });
+      if (!res.ok) throw new Error();
+      toast.success(`"${nombre}" sugerido para el catálogo público`);
+    } catch {
+      toast.error('No se pudo enviar la sugerencia');
     }
   };
 
@@ -623,6 +638,29 @@ export function ManualRoutineBuilder({
                         )}
                       </div>
                     );})
+                  )}
+
+                  {/* Suggest-to-catalog banner */}
+                  {suggestPrompt && (
+                    <div className="mt-2 flex items-center justify-between gap-3 rounded-md border border-primary/30 bg-primary/5 px-3 py-2.5 text-sm">
+                      <span className="text-muted-foreground">
+                        ¿Sugerir <span className="font-medium text-foreground">"{suggestPrompt.nombre}"</span> para el catálogo público?
+                      </span>
+                      <div className="flex shrink-0 gap-2">
+                        <button
+                          onClick={handleSuggest}
+                          className="rounded px-2.5 py-1 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                        >
+                          Sí, sugerir
+                        </button>
+                        <button
+                          onClick={() => setSuggestPrompt(null)}
+                          className="rounded px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          No, gracias
+                        </button>
+                      </div>
+                    </div>
                   )}
 
                   {/* Custom exercise button + inline form */}

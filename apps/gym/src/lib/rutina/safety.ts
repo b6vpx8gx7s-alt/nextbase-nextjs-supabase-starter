@@ -17,7 +17,8 @@ export function parseReps(rep: string): number {
  */
 export async function getSafeExercises(
   clientId: string,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  businessId: string
 ): Promise<SafeExercise[]> {
   const [pathResult, painResult] = await Promise.all([
     supabase.from('pathologies').select('zona_corporal').eq('client_id', clientId),
@@ -42,7 +43,8 @@ export async function getSafeExercises(
 
   const { data: exercises, error } = await supabase
     .from('exercises')
-    .select('id, nombre, patron, grupo_muscular, nivel, equipo, descripcion_breve, gif_url, exercise_restrictions(zona_corporal, severidad, motivo)');
+    .select('id, nombre, patron, grupo_muscular, nivel, equipo, descripcion_breve, gif_url, exercise_restrictions(zona_corporal, severidad, motivo)')
+    .or(`visibility.eq.public,business_id.eq.${businessId}`);
 
   if (error || !exercises) throw new Error('Error fetching exercises: ' + error?.message);
 
@@ -84,7 +86,8 @@ export async function getSafeExercises(
  */
 export async function getAllExercisesWithFlags(
   clientId: string,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  businessId: string
 ): Promise<ExerciseWithFlags[]> {
   const [pathResult, painResult] = await Promise.all([
     supabase.from('pathologies').select('zona_corporal').eq('client_id', clientId),
@@ -110,6 +113,7 @@ export async function getAllExercisesWithFlags(
   const { data: exercises, error } = await supabase
     .from('exercises')
     .select('id, nombre, patron, grupo_muscular, nivel, equipo, descripcion_breve, exercise_restrictions(zona_corporal, severidad, motivo)')
+    .or(`visibility.eq.public,business_id.eq.${businessId}`)
     .order('grupo_muscular')
     .order('nombre');
 

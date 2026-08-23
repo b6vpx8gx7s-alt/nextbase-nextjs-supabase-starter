@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
     if (!client) return NextResponse.json({ error: 'Cliente no encontrado' }, { status: 404 });
 
-    const exercises = await getAllExercisesWithFlags(clientId, supabase);
+    const exercises = await getAllExercisesWithFlags(clientId, supabase, ctx.businessId);
     return NextResponse.json({ exercises });
   } catch (err) {
     console.error('[GET /api/gym/exercises]', err);
