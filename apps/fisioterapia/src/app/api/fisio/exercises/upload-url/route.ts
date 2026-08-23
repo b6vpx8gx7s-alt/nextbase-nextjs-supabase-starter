@@ -11,8 +11,8 @@ export async function POST(request: Request) {
       contentType?: string;
     };
 
-    if (!contentType?.startsWith('image/')) {
-      return NextResponse.json({ error: 'Solo se aceptan imágenes' }, { status: 400 });
+    if (!contentType?.startsWith('image/') && contentType !== 'video/mp4') {
+      return NextResponse.json({ error: 'Solo se aceptan imágenes o video MP4' }, { status: 400 });
     }
 
     // Sanitise extension — strip anything that isn't a lowercase letter or digit

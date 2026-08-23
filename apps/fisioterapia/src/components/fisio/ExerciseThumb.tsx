@@ -7,8 +7,11 @@ function deriveFrame1(url: string) {
 }
 
 /**
- * Thumbnail that cross-fades between frame0 and frame1 of free-exercise-db images.
- * Falls back to a Dumbbell icon when no image is available.
+ * Thumbnail for exercises. Supports:
+ * - MP4 video: rendered as a muted looping <video>
+ * - Frame-pair images (/0.jpg): cross-fades between frame0 and frame1
+ * - Any other image: static <img>
+ * Falls back to a Dumbbell icon when no media is available.
  */
 export function ExerciseThumb({
   gif_url,
@@ -20,7 +23,8 @@ export function ExerciseThumb({
   iconClassName?: string;
 }) {
   const [showSecond, setShowSecond] = useState(false);
-  const hasFrames = !!gif_url && /\/0\.jpg$/.test(gif_url);
+  const isVideo = !!gif_url && gif_url.toLowerCase().endsWith('.mp4');
+  const hasFrames = !!gif_url && !isVideo && /\/0\.jpg$/.test(gif_url);
   const frame1 = hasFrames ? deriveFrame1(gif_url!) : null;
 
   useEffect(() => {
@@ -34,24 +38,35 @@ export function ExerciseThumb({
       className={`shrink-0 rounded overflow-hidden bg-muted flex items-center justify-center relative ${className}`}
     >
       {gif_url ? (
-        <>
-          <img
+        isVideo ? (
+          <video
             src={gif_url}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover transition-opacity duration-300"
-            style={{ opacity: showSecond ? 0 : 1 }}
-            loading="lazy"
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="absolute inset-0 h-full w-full object-cover"
           />
-          {frame1 && (
+        ) : (
+          <>
             <img
-              src={frame1}
+              src={gif_url}
               alt=""
               className="absolute inset-0 h-full w-full object-cover transition-opacity duration-300"
-              style={{ opacity: showSecond ? 1 : 0 }}
+              style={{ opacity: showSecond ? 0 : 1 }}
               loading="lazy"
             />
-          )}
-        </>
+            {frame1 && (
+              <img
+                src={frame1}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover transition-opacity duration-300"
+                style={{ opacity: showSecond ? 1 : 0 }}
+                loading="lazy"
+              />
+            )}
+          </>
+        )
       ) : (
         <Dumbbell className={`text-muted-foreground ${iconClassName}`} />
       )}

@@ -107,7 +107,7 @@ export function ExerciseCatalogList() {
     const file = e.target.files?.[0];
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (!file) return;
-    if (!file.type.startsWith('image/')) { toast.error('Solo se aceptan imágenes o GIFs'); return; }
+    if (!file.type.startsWith('image/') && file.type !== 'video/mp4') { toast.error('Solo se aceptan imágenes, GIFs o video MP4'); return; }
     if (file.size > 28 * 1024 * 1024) { toast.error('El archivo no puede superar 28 MB'); return; }
 
     if (gifPreviewUrl) URL.revokeObjectURL(gifPreviewUrl);
@@ -296,7 +296,7 @@ export function ExerciseCatalogList() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/gif,image/*"
+                  accept="image/gif,image/*,video/mp4"
                   className="sr-only"
                   onChange={handleFileSelect}
                   disabled={uploadingGif}
