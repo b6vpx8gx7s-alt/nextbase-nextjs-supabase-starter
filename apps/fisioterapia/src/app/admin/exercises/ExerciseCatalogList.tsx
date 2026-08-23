@@ -319,13 +319,24 @@ export function ExerciseCatalogList() {
                 ) : (
                   <div className="flex items-center gap-3 rounded-md border px-3 py-2">
                     <ExerciseThumb gif_url={editDraft.gif_url} className="h-12 w-12 shrink-0" />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="text-xs text-primary hover:underline"
-                    >
-                      {editDraft.gif_url ? 'Cambiar imagen' : 'Agregar imagen'}
-                    </button>
+                    <div className="flex flex-col gap-1">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-xs text-primary hover:underline text-left"
+                      >
+                        {editDraft.gif_url ? 'Cambiar imagen' : 'Agregar imagen'}
+                      </button>
+                      {editDraft.gif_url && (
+                        <button
+                          type="button"
+                          onClick={() => setEditDraft((d) => ({ ...d, gif_url: null }))}
+                          className="text-xs text-destructive hover:underline text-left"
+                        >
+                          Quitar imagen
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
