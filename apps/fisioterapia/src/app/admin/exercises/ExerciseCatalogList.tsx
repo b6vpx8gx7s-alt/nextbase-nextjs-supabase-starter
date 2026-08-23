@@ -52,6 +52,7 @@ export function ExerciseCatalogList() {
   const [editDraft, setEditDraft] = useState<EditDraft>({ nombre: '', grupo_muscular: 'core', descripcion_breve: '', gif_url: null });
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<CatalogExercise | null>(null);
+  const [inUseDialog, setInUseDialog] = useState<{ ex: CatalogExercise; message: string } | null>(null);
   const [gifPreviewUrl, setGifPreviewUrl] = useState<string | null>(null);
   const [uploadingGif, setUploadingGif] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -182,12 +183,35 @@ export function ExerciseCatalogList() {
     setConfirmDelete(null);
     try {
       const res = await fetch(`/api/fisio/exercises/${ex.id}`, { method: 'DELETE' });
+      if (res.status === 409) {
+        const { error } = await res.json();
+        setInUseDialog({ ex, message: error ?? 'Ejercicio en uso' });
+        return;
+      }
       if (!res.ok) {
         const { error } = await res.json();
         throw new Error(error ?? 'Error');
       }
       setExercises((prev) => prev.filter((e) => e.id !== ex.id));
       toast.success(`"${ex.nombre}" eliminado`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error inesperado');
+    } finally {
+      setPending((p) => ({ ...p, [ex.id]: false }));
+    }
+  };
+
+  const handleUnpublish = async (ex: CatalogExercise) => {
+    setInUseDialog(null);
+    setPending((p) => ({ ...p, [ex.id]: true }));
+    try {
+      const res = await fetch(`/api/fisio/exercises/${ex.id}/unpublish`, { method: 'PATCH' });
+      if (!res.ok) {
+        const { error } = await res.json();
+        throw new Error(error ?? 'Error');
+      }
+      setExercises((prev) => prev.filter((e) => e.id !== ex.id));
+      toast.success(`"${ex.nombre}" despublicado`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error inesperado');
     } finally {
@@ -234,11 +258,18 @@ export function ExerciseCatalogList() {
                   Editar
                 </button>
                 <button
+                  onClick={() => handleUnpublish(ex)}
+                  disabled={pending[ex.id]}
+                  className="rounded-md border border-amber-400/50 px-3 py-1.5 text-xs font-medium text-amber-600 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/30 disabled:opacity-50 transition-colors"
+                >
+                  Despublicar
+                </button>
+                <button
                   onClick={() => setConfirmDelete(ex)}
                   disabled={pending[ex.id]}
                   className="rounded-md border border-destructive/40 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-colors"
                 >
-                  {pending[ex.id] ? 'Eliminando…' : 'Eliminar'}
+                  {pending[ex.id] ? '…' : 'Eliminar'}
                 </button>
               </div>
             </div>
@@ -355,6 +386,33 @@ export function ExerciseCatalogList() {
                 className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
                 {saving ? 'Guardando…' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* In-use dialog: DELETE blocked, offer unpublish instead */}
+      {inUseDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-lg border bg-background shadow-xl p-6 space-y-4">
+            <p className="text-sm font-medium">No se puede eliminar</p>
+            <p className="text-xs text-muted-foreground">{inUseDialog.message}</p>
+            <p className="text-xs text-muted-foreground">
+              Puedes despublicarlo: dejará de aparecer en el catálogo para nuevos planes, pero seguirá disponible en los planes que ya lo tienen.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setInUseDialog(null)}
+                className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleUnpublish(inUseDialog.ex)}
+                className="rounded-md bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 transition-colors"
+              >
+                Despublicar en su lugar
               </button>
             </div>
           </div>
