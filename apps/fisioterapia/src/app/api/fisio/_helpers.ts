@@ -54,6 +54,17 @@ export function createFisioAdminClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+export async function requireSuperAdmin(userId: string): Promise<boolean> {
+  const supabase = createFisioAdminClient();
+  const { data } = await supabase
+    .from('super_admins')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('active', true)
+    .maybeSingle();
+  return !!data;
+}
+
 export async function getClientAndContext() {
   const supabase = await createFisioClient();
 
