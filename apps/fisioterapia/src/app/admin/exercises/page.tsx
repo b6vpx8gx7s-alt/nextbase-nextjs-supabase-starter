@@ -1,7 +1,7 @@
 import { createFisioAdminClient } from '@/app/api/fisio/_helpers';
-import { ExerciseApprovalList } from './ExerciseApprovalList';
+import { AdminExerciseTabs } from './AdminExerciseTabs';
 
-export default async function SuggestedExercisesPage() {
+export default async function AdminExercisesPage() {
   const admin = createFisioAdminClient();
   const { data, error } = await admin
     .from('exercises')
@@ -10,11 +10,7 @@ export default async function SuggestedExercisesPage() {
     .eq('visibility', 'private')
     .order('nombre');
 
-  if (error) {
-    return <p className="text-sm text-destructive">Error al cargar ejercicios: {error.message}</p>;
-  }
-
-  const exercises = (data ?? []).map((ex) => ({
+  const pending = error ? [] : (data ?? []).map((ex) => ({
     id: ex.id as string,
     nombre: ex.nombre as string,
     grupo_muscular: ex.grupo_muscular as string,
@@ -25,12 +21,12 @@ export default async function SuggestedExercisesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold">Ejercicios sugeridos para el catálogo</h1>
+        <h1 className="text-xl font-semibold">Gestión de ejercicios</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Ejercicios privados marcados como sugeridos por los negocios. Apruébalos para hacerlos públicos.
+          Aprueba sugerencias de negocios y administra el catálogo global.
         </p>
       </div>
-      <ExerciseApprovalList initialExercises={exercises} />
+      <AdminExerciseTabs initialPending={pending} />
     </div>
   );
 }
