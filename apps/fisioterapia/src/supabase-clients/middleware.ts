@@ -30,7 +30,24 @@ export async function updateSession(request: NextRequest) {
 
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
+
+  // Stale refresh token: clear all sb-* cookies (both with and without the
+  // .roda.ink domain) so the browser doesn't loop forever on a bad cookie.
+  if (authError?.code === 'refresh_token_not_found') {
+    const loginUrl = process.env.NODE_ENV === 'production'
+      ? new URL('https://www.roda.ink/login')
+      : new URL('/login', request.url);
+    const res = NextResponse.redirect(loginUrl);
+    request.cookies.getAll()
+      .filter(({ name }) => name.startsWith('sb-'))
+      .forEach(({ name }) => {
+        res.cookies.set(name, '', { maxAge: 0, path: '/' });
+        res.cookies.set(name, '', { maxAge: 0, path: '/', domain: '.roda.ink' });
+      });
+    return res;
+  }
 
   const pathname = request.nextUrl.pathname;
   const isProtected =

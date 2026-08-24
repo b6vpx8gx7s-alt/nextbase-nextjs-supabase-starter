@@ -1,5 +1,8 @@
 'use client';
 
+// This page reads tokens from the URL hash at runtime — never prerender it.
+export const dynamic = 'force-dynamic';
+
 import { useEffect, useState } from 'react';
 import { createClient } from '@/supabase-clients/client';
 

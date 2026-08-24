@@ -46,7 +46,27 @@ export async function updateSession(request: NextRequest) {
 
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
+
+  // Stale refresh token: clear all sb-* cookies (both with and without the
+  // .roda.ink domain) so the browser doesn't loop forever on a bad cookie.
+  if (authError?.code === 'refresh_token_not_found') {
+    const pathname = request.nextUrl.pathname;
+    const onAuthPage = ['/login', '/sign-up', '/forgot-password', '/update-password'].some(
+      (p) => pathname.startsWith(p)
+    );
+    const res = onAuthPage
+      ? supabaseResponse
+      : NextResponse.redirect(new URL('/login', request.url));
+    request.cookies.getAll()
+      .filter(({ name }) => name.startsWith('sb-'))
+      .forEach(({ name }) => {
+        res.cookies.set(name, '', { maxAge: 0, path: '/' });
+        if (cookieDomain) res.cookies.set(name, '', { maxAge: 0, path: '/', domain: cookieDomain });
+      });
+    return res;
+  }
 
   if (
     !user &&
