@@ -489,6 +489,9 @@ importers:
       '@nextbase/typescript-config':
         specifier: workspace:*
         version: link:../../packages/typescript-config
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.20.1
       oxlint:
         specifier: ^1.65.0
         version: 1.65.0
