@@ -31,3 +31,4 @@ playwright/.auth/
 .turbo/
 apps/*/.turbo/
 .vercel
+.env*
