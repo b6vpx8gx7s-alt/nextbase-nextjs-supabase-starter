@@ -21,7 +21,8 @@ async function AuthGuard({ children }: { children: ReactNode }) {
     admin.from('employee_auth').select('employee_id').eq('user_id', user!.id).maybeSingle(),
   ]);
 
-  const isGymUser = !!profileRes.data?.business_id || !!employeeRes.data?.employee_id;
+  const businessId = profileRes.data?.business_id;
+  const isGymUser = !!businessId || !!employeeRes.data?.employee_id;
 
   if (!isGymUser) {
     const { data: clientLink } = await admin
@@ -31,6 +32,16 @@ async function AuthGuard({ children }: { children: ReactNode }) {
       .maybeSingle();
 
     redirect(clientLink ? '/portal' : '/login');
+  }
+
+  if (businessId) {
+    const { data: svc } = await admin
+      .from('business_services')
+      .select('service')
+      .eq('business_id', businessId)
+      .eq('service', 'gym')
+      .maybeSingle();
+    if (!svc) redirect('/login');
   }
 
   return <>{children}</>;

@@ -25,8 +25,20 @@ async function AuthGuard({ children }: { children: ReactNode }) {
     admin.from('employee_auth').select('employee_id').eq('user_id', user.id).maybeSingle(),
   ]);
 
-  if (!profileRes.data?.business_id && !employeeRes.data?.employee_id) {
+  const businessId = profileRes.data?.business_id;
+
+  if (!businessId && !employeeRes.data?.employee_id) {
     redirect('/login');
+  }
+
+  if (businessId) {
+    const { data: svc } = await admin
+      .from('business_services')
+      .select('service')
+      .eq('business_id', businessId)
+      .eq('service', 'nutricion')
+      .maybeSingle();
+    if (!svc) redirect('/login');
   }
 
   return <>{children}</>;

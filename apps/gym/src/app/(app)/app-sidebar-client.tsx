@@ -2,19 +2,21 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Users, LogOut } from 'lucide-react';
+import { Users, LogOut, Salad } from 'lucide-react';
 import { createClient } from '@/supabase-clients/client';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 
-type NavItem = { title: string; url: string; icon: typeof Users; matchPaths?: string[] };
+type NavItem = { title: string; url: string; icon: React.ElementType; matchPaths?: string[]; external?: boolean };
 
-const navItems: NavItem[] = [
-  { title: 'Clientes', url: '/dashboard', icon: Users, matchPaths: ['/dashboard', '/clientes'] },
-];
-
-export function AppSidebarContent({ user }: { user: User }) {
+export function AppSidebarContent({ user, services }: { user: User; services: string[] }) {
+  const navItems: NavItem[] = [
+    { title: 'Clientes', url: '/dashboard', icon: Users, matchPaths: ['/dashboard', '/clientes'] },
+    ...(services.includes('nutricion')
+      ? [{ title: 'Nutrición', url: 'https://nutrition.roda.ink', icon: Salad, external: true }]
+      : []),
+  ];
   const pathname = usePathname();
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
@@ -61,22 +63,23 @@ export function AppSidebarContent({ user }: { user: User }) {
       <nav className="flex-1 px-3 py-4 space-y-1">
         <p className="px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">Menú</p>
         {navItems.map((item) => {
-          const isActive = item.matchPaths
+          const isActive = !item.external && (item.matchPaths
             ? item.matchPaths.some((p) => pathname.startsWith(p))
-            : pathname.startsWith(item.url);
+            : pathname.startsWith(item.url));
           const Icon = item.icon;
-          return (
-            <Link
-              key={item.url}
-              href={item.url}
-              className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors
-                ${isActive
-                  ? 'bg-sidebar-primary/10 text-sidebar-primary'
-                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                }`}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {item.title}
+          const className = `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors
+            ${isActive
+              ? 'bg-sidebar-primary/10 text-sidebar-primary'
+              : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+            }`;
+          const content = <><Icon className="h-4 w-4 shrink-0" />{item.title}</>;
+          return item.external ? (
+            <a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer" className={className}>
+              {content}
+            </a>
+          ) : (
+            <Link key={item.url} href={item.url} className={className}>
+              {content}
             </Link>
           );
         })}
