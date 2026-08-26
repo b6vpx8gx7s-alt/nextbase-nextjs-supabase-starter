@@ -52,13 +52,10 @@ export async function updateSession(request: NextRequest) {
   // Stale refresh token: clear all sb-* cookies (both with and without the
   // .roda.ink domain) so the browser doesn't loop forever on a bad cookie.
   if (authError?.code === 'refresh_token_not_found') {
-    const pathname = request.nextUrl.pathname;
-    const onAuthPage = ['/login', '/sign-up', '/forgot-password', '/update-password'].some(
-      (p) => pathname.startsWith(p)
-    );
-    const res = onAuthPage
-      ? supabaseResponse
-      : NextResponse.redirect(new URL('/login', request.url));
+    const loginUrl = process.env.NODE_ENV === 'production'
+      ? new URL('https://www.roda.ink/login')
+      : new URL('/login', request.url);
+    const res = NextResponse.redirect(loginUrl);
     request.cookies.getAll()
       .filter(({ name }) => name.startsWith('sb-'))
       .forEach(({ name }) => {
@@ -68,13 +65,18 @@ export async function updateSession(request: NextRequest) {
     return res;
   }
 
-  if (
-    !user &&
-    protectedPages.some((page) => match(page)(request.nextUrl.pathname))
-  ) {
-    const url = request.nextUrl.clone();
-    url.pathname = '/login';
-    return NextResponse.redirect(url);
+  const pathname = request.nextUrl.pathname;
+  const isProtected =
+    pathname.startsWith('/dashboard') ||
+    protectedPages.some((page) => match(page)(pathname));
+
+  if (!user && isProtected) {
+    if (process.env.NODE_ENV === 'production') {
+      const loginUrl = new URL('https://www.roda.ink/login');
+      loginUrl.searchParams.set('next', request.nextUrl.href);
+      return NextResponse.redirect(loginUrl);
+    }
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
   return supabaseResponse;
