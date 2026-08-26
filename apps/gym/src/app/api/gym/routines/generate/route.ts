@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     // ── 1. Verificar que el cliente pertenece al negocio ──────
     const { data: client } = await supabase
       .from('gym_clients')
-      .select('nombre, nivel_entrenamiento, objetivo_principal, dias_disponibles')
+      .select('nombre, nivel_entrenamiento, objetivo_principal, dias_disponibles, lesion_actual, zona_a_mejorar, usa_esteroides, problema_cardiovascular')
       .eq('id', client_id)
       .eq('business_id', ctx.businessId)
       .maybeSingle();
@@ -86,6 +86,10 @@ export async function POST(request: Request) {
       safeExercises,
       measurements: latestMeasurements,
       goals: (goalsRes.data ?? []) as { descripcion: string; fecha_objetivo: string | null }[],
+      lesion_actual: (client.lesion_actual as string | null) ?? null,
+      zona_a_mejorar: (client.zona_a_mejorar as string | null) ?? null,
+      usa_esteroides: (client.usa_esteroides as boolean | null) ?? false,
+      problema_cardiovascular: (client.problema_cardiovascular as string | null) ?? null,
     });
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });

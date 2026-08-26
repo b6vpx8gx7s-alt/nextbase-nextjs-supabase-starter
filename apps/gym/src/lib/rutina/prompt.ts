@@ -8,6 +8,10 @@ interface PromptContext {
   safeExercises: SafeExercise[];
   measurements: { label: string; value: number; unit: string | null; measured_at: string }[];
   goals: { descripcion: string; fecha_objetivo: string | null }[];
+  lesion_actual: string | null;
+  zona_a_mejorar: string | null;
+  usa_esteroides: boolean;
+  problema_cardiovascular: string | null;
 }
 
 const PATRON_LABEL: Record<string, string> = {
@@ -88,6 +92,36 @@ export function buildPrompt(ctx: PromptContext): string {
 
   const objetivo = OBJETIVO_LABEL[ctx.objetivo_principal] ?? ctx.objetivo_principal.replace('_', ' ');
 
+  const restriccionLines: string[] = [];
+  if (ctx.lesion_actual) {
+    restriccionLines.push(
+      '- LESION ACTIVA: "' + ctx.lesion_actual + '". Evita o adapta cualquier ejercicio que cargue directamente esa zona. Si un ejercicio del catalogo la compromete, agrégale una "nota" de modificacion o excluye ese ejercicio.',
+    );
+  }
+  if (ctx.zona_a_mejorar) {
+    restriccionLines.push(
+      '- ZONA A MEJORAR: "' + ctx.zona_a_mejorar + '". Incluye al menos un ejercicio específico para esa zona en días que correspondan por recuperacion.',
+    );
+  }
+  if (ctx.problema_cardiovascular) {
+    restriccionLines.push(
+      '- CONDICION CARDIOVASCULAR: "' + ctx.problema_cardiovascular + '". Mantén la intensidad cardiovascular moderada (evita prescribir HIIT extenuante, sprints o esfuerzo máximo sostenido sin supervisión médica). Prioriza trabajo de fuerza controlado y recuperación activa.',
+    );
+  }
+  if (ctx.usa_esteroides) {
+    restriccionLines.push(
+      '- NOTA PARA EL ENTRENADOR: el atleta declara uso de esteroides. No modifica la prescripción de ejercicio pero puede afectar la velocidad de recuperación — puedes reflejarlo en las notas_generales si es relevante.',
+    );
+  }
+  if (ctx.lesion_actual || ctx.problema_cardiovascular) {
+    restriccionLines.push(
+      '- AVISO OBLIGATORIO EN NOTAS: dado que el atleta reporta condiciones de salud (lesión y/o condición cardiovascular), debes incluir en las notas_generales una recomendación explícita al entrenador de consultar con un médico o fisioterapeuta antes de aplicar esta rutina.',
+    );
+  }
+  const restriccionesStr = restriccionLines.length > 0
+    ? restriccionLines.join('\n')
+    : '  - Sin restricciones de salud reportadas';
+
   return [
     'Eres un entrenador personal especializado en fitness y musculación.',
     '',
@@ -102,6 +136,9 @@ export function buildPrompt(ctx: PromptContext): string {
     '',
     'OBJETIVOS ACTIVOS:',
     goalsStr,
+    '',
+    'RESTRICCIONES Y SALUD (OBLIGATORIO respetar):',
+    restriccionesStr,
     '',
     'REGLAS ESTRICTAS:',
     '1. Genera exactamente ' + ctx.dias_count + ' dias de entrenamiento para una semana.',
