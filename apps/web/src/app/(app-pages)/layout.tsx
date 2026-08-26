@@ -32,13 +32,15 @@ async function AuthGuard({ children }: { children: ReactNode }) {
   }
 
   if (businessId) {
-    const { data: svc } = await admin
-      .from('business_services')
-      .select('service')
-      .eq('business_id', businessId)
-      .eq('service', 'nutricion')
-      .maybeSingle();
-    if (!svc) redirect('/login');
+    // Nutrition is a gym add-on: the base business must be 'gym' AND must
+    // have 'nutricion' explicitly in business_services. Both checks are
+    // required — the second alone is not enough because a manual INSERT into
+    // business_services could otherwise grant access to a non-gym business.
+    const [bizRes, svcRes] = await Promise.all([
+      admin.from('businesses').select('category').eq('id', businessId).maybeSingle(),
+      admin.from('business_services').select('service').eq('business_id', businessId).eq('service', 'nutricion').maybeSingle(),
+    ]);
+    if (bizRes.data?.category !== 'gym' || !svcRes.data) redirect('/login');
   }
 
   return <>{children}</>;

@@ -12,25 +12,18 @@ import {
 import { SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarRail } from "@/components/ui/sidebar";
 import { signOutAction } from "@/data/auth/sign-out";
 import { User } from "@supabase/supabase-js";
-import { ChevronUp, LogOut, Settings, Salad, Dumbbell } from "lucide-react";
+import { ChevronUp, LogOut, Settings, Salad } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTransition } from "react";
 
-type NavItem = { title: string; url: string; icon: React.ElementType; external?: boolean };
+const navigationItems: { title: string; url: string; icon: React.ElementType; external?: boolean }[] = [
+  { title: 'Planes Nutricionales', url: '/nutrition', icon: Salad },
+];
 
-
-
-export function AppSidebarContent({ user, services }: { user: User; services: string[] }) {
+export function AppSidebarContent({ user }: { user: User }) {
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
-
-  const navigationItems: NavItem[] = [
-    { title: 'Planes Nutricionales', url: '/nutrition', icon: Salad },
-    ...(services.includes('gym')
-      ? [{ title: 'Gym', url: 'https://gym.roda.ink', icon: Dumbbell, external: true }]
-      : []),
-  ];
 
   function handleSignOut() {
     startTransition(async () => {

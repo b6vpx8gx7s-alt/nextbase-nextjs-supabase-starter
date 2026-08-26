@@ -7,7 +7,6 @@ import {
   SidebarMenuItem
 } from '@/components/ui/sidebar';
 import { getCachedLoggedInVerifiedSupabaseUser } from '@/rsc-data/supabase';
-import { createAdminClient } from '@/supabase-clients/admin';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { AppSidebarContent } from './app-sidebar-client';
@@ -46,25 +45,7 @@ async function SidebarHeaderContent() {
 
 async function SidebarContentWrapper() {
   const { user } = await getCachedLoggedInVerifiedSupabaseUser();
-
-  const admin = createAdminClient();
-  const profileRes = await admin
-    .from('profiles')
-    .select('business_id')
-    .eq('user_id', user.id)
-    .maybeSingle();
-  const businessId = profileRes.data?.business_id;
-
-  let services: string[] = [];
-  if (businessId) {
-    const { data } = await admin
-      .from('business_services')
-      .select('service')
-      .eq('business_id', businessId);
-    services = (data ?? []).map((r: { service: string }) => r.service);
-  }
-
-  return <AppSidebarContent user={user} services={services} />;
+  return <AppSidebarContent user={user} />;
 }
 
 
