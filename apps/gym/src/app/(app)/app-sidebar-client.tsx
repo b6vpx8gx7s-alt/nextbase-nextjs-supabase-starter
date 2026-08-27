@@ -14,7 +14,7 @@ export function AppSidebarContent({ user, services }: { user: User; services: st
   const navItems: NavItem[] = [
     { title: 'Clientes', url: '/dashboard', icon: Users, matchPaths: ['/dashboard', '/clientes'] },
     ...(services.includes('nutricion')
-      ? [{ title: 'Nutrición', url: 'https://nutrition.roda.ink', icon: Salad, external: true }]
+      ? [{ title: 'Nutrición', url: 'https://nutrition.roda.ink/dashboard', icon: Salad, external: true }]
       : []),
   ];
   const pathname = usePathname();
