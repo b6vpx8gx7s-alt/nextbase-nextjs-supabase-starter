@@ -20,7 +20,7 @@ export async function GET(request: Request) {
       .from('customers')
       .select('id, name, phone, email')
       .eq('business_id', ctx.businessId)
-      .or(`name.ilike.${term},phone.ilike.${term}`)
+      .or(`name.ilike.${term},phone.ilike.${term},email.ilike.${term}`)
       .limit(10);
 
     if (error) {
