@@ -10,7 +10,7 @@ export default async function ProtectedPortalLayout({ children }: { children: Re
 
   if (!user) {
     const loginUrl =
-      process.env.NODE_ENV === 'production' ? 'https://www.roda.ink/login' : '/login';
+      process.env.NODE_ENV === 'production' ? 'https://www.roda.ink' : '/';
     redirect(loginUrl);
   }
 
