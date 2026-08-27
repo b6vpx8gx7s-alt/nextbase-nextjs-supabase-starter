@@ -13,6 +13,7 @@ export function ExerciseLightbox({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const isVideo = !!gif_url && gif_url.toLowerCase().endsWith('.mp4');
 
   useEffect(() => {
     if (!open) return;
@@ -28,7 +29,7 @@ export function ExerciseLightbox({
         onClick={() => { if (gif_url) setOpen(true); }}
         className={gif_url ? 'cursor-zoom-in' : 'cursor-default'}
         tabIndex={gif_url ? 0 : -1}
-        aria-label={gif_url ? `Ver imagen de ${nombre ?? 'ejercicio'}` : undefined}
+        aria-label={gif_url ? `Ver ${isVideo ? 'video' : 'imagen'} de ${nombre ?? 'ejercicio'}` : undefined}
       >
         <ExerciseThumb gif_url={gif_url} className={className} />
       </button>
@@ -46,12 +47,25 @@ export function ExerciseLightbox({
           >
             <X className="h-5 w-5" />
           </button>
-          <img
-            src={gif_url!}
-            alt={nombre ?? 'Ejercicio'}
-            className="max-h-[80vh] max-w-[90vw] rounded-lg object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
+
+          {isVideo ? (
+            <video
+              src={gif_url!}
+              controls
+              autoPlay
+              loop
+              className="max-h-[80vh] max-w-[90vw] rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <img
+              src={gif_url!}
+              alt={nombre ?? 'Ejercicio'}
+              className="max-h-[80vh] max-w-[90vw] rounded-lg object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+
           {nombre && (
             <p className="absolute bottom-6 left-0 right-0 text-center text-sm font-semibold text-white drop-shadow">
               {nombre}
