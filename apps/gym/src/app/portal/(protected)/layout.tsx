@@ -9,9 +9,7 @@ export default async function ProtectedPortalLayout({ children }: { children: Re
   } = await supabase.auth.getUser();
 
   if (!user) {
-    const loginUrl =
-      process.env.NODE_ENV === 'production' ? 'https://www.roda.ink' : '/';
-    redirect(loginUrl);
+    redirect('/portal/login');
   }
 
   const { data: link } = await supabase
