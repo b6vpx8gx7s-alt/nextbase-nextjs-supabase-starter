@@ -1,6 +1,6 @@
 import { createSupabaseClient } from '@/supabase-clients/server';
 import { createGymAdminClient } from '@/app/api/gym/_helpers';
-import { RoutineView } from '@/components/fisio/RoutineView';
+import { WorkoutLogger } from './WorkoutLogger';
 import type { PhysioRoutine } from '@/lib/fisio-types';
 
 export default async function PortalPage() {
@@ -44,7 +44,7 @@ export default async function PortalPage() {
       </div>
 
       {routine ? (
-        <RoutineView routine={routine} />
+        <WorkoutLogger routine={routine} />
       ) : (
         <div className="rounded-lg border border-dashed p-12 text-center">
           <p className="text-sm text-muted-foreground">

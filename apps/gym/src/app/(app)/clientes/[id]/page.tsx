@@ -10,6 +10,7 @@ import { ManualRoutineBuilder } from '@/components/fisio/ManualRoutineBuilder';
 import { RoutineView } from '@/components/fisio/RoutineView';
 import { ClinicalHistory } from '@/components/fisio/ClinicalHistory';
 import { PatientGoals } from '@/components/fisio/PatientGoals';
+import { ClientTrainingHistory } from '@/components/gym/ClientTrainingHistory';
 import type { GymClient, PhysioRoutine } from '@/lib/fisio-types';
 import { ChevronLeft, Activity } from 'lucide-react';
 import Link from 'next/link';
@@ -209,6 +210,9 @@ export default function ClientDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Historial de entrenamiento registrado por el cliente */}
+      <ClientTrainingHistory clientId={id} />
     </div>
   );
 }
