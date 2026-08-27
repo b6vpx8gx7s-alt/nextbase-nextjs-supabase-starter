@@ -148,6 +148,7 @@ export function buildPrompt(ctx: PromptContext): string {
     '5. Alterna grupos musculares entre dias para permitir recuperacion.',
     '6. Adapta series/repeticiones al nivel ' + ctx.nivel_entrenamiento + ' y al objetivo ' + objetivo + '.',
     '7. Ten en cuenta las mediciones y objetivos al disenar el plan.',
+    '8. NO incluyas el campo peso_objetivo_kg en tu respuesta — ese valor lo configura el entrenador manualmente.',
     '',
     'CATALOGO DE EJERCICIOS PERMITIDOS (solo puedes usar estos):',
     catalogLines,

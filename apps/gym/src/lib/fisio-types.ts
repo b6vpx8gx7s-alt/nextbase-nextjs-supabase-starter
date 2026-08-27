@@ -67,6 +67,7 @@ export interface DraftEjercicio {
   descanso_seg: number;
   nota?: string;
   gif_url?: string | null;
+  peso_objetivo_kg?: number | null;
 }
 
 export interface DraftDia {

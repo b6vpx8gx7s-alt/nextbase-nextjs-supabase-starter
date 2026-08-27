@@ -11,6 +11,7 @@ type SetKey = `${string}:${number}`;
 interface SetState {
   reps: string;
   peso: string;
+  nota: string;
   saved: boolean;
   saving: boolean;
 }
@@ -21,6 +22,7 @@ interface SetLog {
   set_num: number;
   reps_o_seg: number;
   peso_kg: number | null;
+  nota: string | null;
 }
 
 interface Session {
@@ -37,6 +39,8 @@ function makeKey(exerciseId: string, setNum: number): SetKey {
   return `${exerciseId}:${setNum}`;
 }
 
+const DEFAULT_SET: SetState = { reps: '', peso: '', nota: '', saved: false, saving: false };
+
 function logsToState(sessions: Session[]): {
   ids: Record<number, string>;
   sets: Record<SetKey, SetState>;
@@ -49,6 +53,7 @@ function logsToState(sessions: Session[]): {
       sets[makeKey(log.exercise_id, log.set_num)] = {
         reps: String(log.reps_o_seg),
         peso: log.peso_kg != null ? String(log.peso_kg) : '',
+        nota: log.nota ?? '',
         saved: true,
         saving: false,
       };
@@ -88,11 +93,11 @@ export function WorkoutLogger({ routine }: { routine: PhysioRoutine }) {
     return sessionId;
   }
 
-  function updateSet(key: SetKey, field: 'reps' | 'peso', value: string) {
+  function updateSet(key: SetKey, field: 'reps' | 'peso' | 'nota', value: string) {
     setSets((prev) => ({
       ...prev,
       [key]: {
-        ...(prev[key] ?? { reps: '', peso: '', saved: false, saving: false }),
+        ...(prev[key] ?? DEFAULT_SET),
         [field]: value,
         saved: false,
       },
@@ -101,7 +106,7 @@ export function WorkoutLogger({ routine }: { routine: PhysioRoutine }) {
 
   async function handleSaveSet(ej: DraftEjercicio, setNum: number, diaIndex: number) {
     const key = makeKey(ej.exercise_id, setNum);
-    const current = sets[key] ?? { reps: '', peso: '', saved: false, saving: false };
+    const current = sets[key] ?? DEFAULT_SET;
     const repsVal = parseInt(current.reps, 10);
     if (!repsVal || repsVal <= 0) return;
 
@@ -119,6 +124,7 @@ export function WorkoutLogger({ routine }: { routine: PhysioRoutine }) {
           setNum,
           repsOSeg: repsVal,
           pesoKg,
+          nota: current.nota.trim() || null,
         }),
       });
       if (res.ok) {
@@ -169,13 +175,21 @@ export function WorkoutLogger({ routine }: { routine: PhysioRoutine }) {
           {dia.ejercicios.map((ej) => {
             const iso = isIsometric(ej);
             const repLabel = iso ? 'seg' : 'reps';
+            const hasTarget = !iso && ej.peso_objetivo_kg != null && ej.peso_objetivo_kg > 0;
             return (
               <div key={ej.exercise_id} className="rounded-lg border bg-card p-4 space-y-3">
                 {/* Exercise header */}
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <ExerciseLightbox gif_url={ej.gif_url} nombre={ej.nombre} />
-                    <span className="text-sm font-medium">{ej.nombre}</span>
+                    <div>
+                      <span className="text-sm font-medium">{ej.nombre}</span>
+                      {hasTarget && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Objetivo: <span className="font-medium text-foreground">{ej.peso_objetivo_kg} kg</span> × {ej.repeticiones}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <Badge variant="secondary" className="shrink-0 text-xs">
                     {ej.series}×{ej.repeticiones}
@@ -189,59 +203,70 @@ export function WorkoutLogger({ routine }: { routine: PhysioRoutine }) {
                 )}
 
                 {/* Series rows */}
-                <div className="space-y-2 pt-1">
+                <div className="space-y-3 pt-1">
                   {Array.from({ length: ej.series }, (_, i) => i + 1).map((setNum) => {
                     const key = makeKey(ej.exercise_id, setNum);
-                    const state = sets[key] ?? { reps: '', peso: '', saved: false, saving: false };
+                    const state = sets[key] ?? DEFAULT_SET;
                     return (
-                      <div key={setNum} className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground w-14 shrink-0">
-                          Serie {setNum}
-                        </span>
-                        {!iso && (
-                          <>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.5"
-                              value={state.peso}
-                              onChange={(e) => updateSet(key, 'peso', e.target.value)}
-                              placeholder="kg"
-                              className="w-16 rounded-md border px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-                            />
-                            <span className="text-xs text-muted-foreground">×</span>
-                          </>
-                        )}
-                        <input
-                          type="number"
-                          min="0"
-                          value={state.reps}
-                          onChange={(e) => updateSet(key, 'reps', e.target.value)}
-                          placeholder={repLabel}
-                          className="w-16 rounded-md border px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-                        />
-                        <span className="text-xs text-muted-foreground">{repLabel}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleSaveSet(ej, setNum, dia.dia_index)}
-                          disabled={state.saving || !state.reps}
-                          className={`ml-auto shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50
-                            ${state.saved
-                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                              : 'bg-primary text-primary-foreground hover:bg-primary/90'
-                            }`}
-                        >
-                          {state.saving ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : state.saved ? (
+                      <div key={setNum} className="space-y-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground w-14 shrink-0">
+                            Serie {setNum}
+                          </span>
+                          {!iso && (
                             <>
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                              Guardado
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.5"
+                                value={state.peso}
+                                onChange={(e) => updateSet(key, 'peso', e.target.value)}
+                                placeholder={hasTarget ? String(ej.peso_objetivo_kg) : 'kg'}
+                                className="w-16 rounded-md border px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+                              />
+                              <span className="text-xs text-muted-foreground">×</span>
                             </>
-                          ) : (
-                            'Registrar'
                           )}
-                        </button>
+                          <input
+                            type="number"
+                            min="0"
+                            value={state.reps}
+                            onChange={(e) => updateSet(key, 'reps', e.target.value)}
+                            placeholder={repLabel}
+                            className="w-16 rounded-md border px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+                          />
+                          <span className="text-xs text-muted-foreground">{repLabel}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveSet(ej, setNum, dia.dia_index)}
+                            disabled={state.saving || !state.reps}
+                            className={`ml-auto shrink-0 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50
+                              ${state.saved
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                              }`}
+                          >
+                            {state.saving ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : state.saved ? (
+                              <>
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Guardado
+                              </>
+                            ) : (
+                              'Registrar'
+                            )}
+                          </button>
+                        </div>
+                        <div className="pl-14">
+                          <input
+                            type="text"
+                            value={state.nota}
+                            onChange={(e) => updateSet(key, 'nota', e.target.value)}
+                            placeholder="Nota de esta serie (opcional)…"
+                            className="w-full rounded-md border px-2 py-1 text-xs text-muted-foreground bg-background focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/50"
+                          />
+                        </div>
                       </div>
                     );
                   })}

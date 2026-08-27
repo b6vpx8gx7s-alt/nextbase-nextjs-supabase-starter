@@ -3,16 +3,17 @@ import { createSupabaseClient } from '@/supabase-clients/server';
 import { createGymAdminClient } from '../../_helpers';
 
 // POST /api/gym/portal/set-logs
-// Body: { sessionId, exerciseId, setNum, repsOSeg, pesoKg? }
+// Body: { sessionId, exerciseId, setNum, repsOSeg, pesoKg?, nota? }
 // Upserts a single set log. Safe to call multiple times (UNIQUE constraint).
 export async function POST(request: Request) {
   try {
-    const { sessionId, exerciseId, setNum, repsOSeg, pesoKg } = (await request.json()) as {
+    const { sessionId, exerciseId, setNum, repsOSeg, pesoKg, nota } = (await request.json()) as {
       sessionId: string;
       exerciseId: string;
       setNum: number;
       repsOSeg: number;
       pesoKg?: number | null;
+      nota?: string | null;
     };
 
     if (!sessionId || !exerciseId || !setNum || repsOSeg === undefined) {
@@ -50,10 +51,11 @@ export async function POST(request: Request) {
           set_num: setNum,
           reps_o_seg: repsOSeg,
           peso_kg: pesoKg ?? null,
+          nota: nota || null,
         },
         { onConflict: 'session_id,exercise_id,set_num' }
       )
-      .select('id, reps_o_seg, peso_kg')
+      .select('id, reps_o_seg, peso_kg, nota')
       .single();
 
     if (error) throw new Error(error.message);

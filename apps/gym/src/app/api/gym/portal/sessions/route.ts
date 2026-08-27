@@ -26,7 +26,7 @@ export async function GET(request: Request) {
 
     const { data: sessions, error } = await admin
       .from('gym_workout_sessions')
-      .select('id, dia_index, trained_at, gym_set_logs(id, exercise_id, set_num, reps_o_seg, peso_kg)')
+      .select('id, dia_index, trained_at, gym_set_logs(id, exercise_id, set_num, reps_o_seg, peso_kg, nota)')
       .eq('client_id', link.gym_client_id)
       .eq('routine_id', routineId)
       .eq('trained_at', today);

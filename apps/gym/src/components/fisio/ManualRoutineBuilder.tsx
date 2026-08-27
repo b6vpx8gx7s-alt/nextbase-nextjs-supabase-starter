@@ -42,7 +42,7 @@ interface Props {
   onUpdated?: (routine: PhysioRoutine) => void;
 }
 
-type ExerciseParams = { series: number; repeticiones: string; notas: string };
+type ExerciseParams = { series: number; repeticiones: string; notas: string; peso_obj: string };
 // dayIndex (0–6) → exerciseId → params
 type DayMap = Record<number, Record<string, ExerciseParams>>;
 
@@ -107,6 +107,7 @@ export function ManualRoutineBuilder({
             series: ej.series,
             repeticiones: ej.repeticiones,
             notas: ej.nota ?? '',
+            peso_obj: ej.peso_objetivo_kg != null ? String(ej.peso_objetivo_kg) : '',
           };
         });
       });
@@ -159,7 +160,7 @@ export function ManualRoutineBuilder({
       if (cur[ex.id]) {
         delete cur[ex.id];
       } else {
-        cur[ex.id] = { series: 3, repeticiones: '10-12', notas: '' };
+        cur[ex.id] = { series: 3, repeticiones: '10-12', notas: '', peso_obj: '' };
       }
       return { ...prev, [dayIdx]: cur };
     });
@@ -176,7 +177,7 @@ export function ManualRoutineBuilder({
       [dayIdx]: {
         ...(prev[dayIdx] ?? {}),
         [exId]: {
-          ...(prev[dayIdx]?.[exId] ?? { series: 3, repeticiones: '10-12', notas: '' }),
+          ...(prev[dayIdx]?.[exId] ?? { series: 3, repeticiones: '10-12', notas: '', peso_obj: '' }),
           [field]: value,
         },
       },
@@ -339,6 +340,7 @@ export function ManualRoutineBuilder({
             repeticiones: params.repeticiones || '10',
             descanso_seg: 60,
             nota: params.notas || undefined,
+            peso_objetivo_kg: params.peso_obj ? parseFloat(params.peso_obj) : null,
           }];
         });
         return { dia_index: i, nombre: DAYS[dayIdx], ejercicios };
@@ -620,7 +622,7 @@ export function ManualRoutineBuilder({
                                   </label>
 
                                   {isSelected && params && (
-                                    <div className="grid grid-cols-3 gap-2 border-t px-3 py-2.5">
+                                    <div className="grid grid-cols-4 gap-2 border-t px-3 py-2.5">
                                       <div>
                                         <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
                                           Series
@@ -652,7 +654,23 @@ export function ManualRoutineBuilder({
                                       </div>
                                       <div>
                                         <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
-                                          Nota (opcional)
+                                          Peso obj. (kg)
+                                        </label>
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          step={0.5}
+                                          value={params.peso_obj}
+                                          onChange={(e) =>
+                                            updateParam(activeDayIdx, ex.id, 'peso_obj', e.target.value)
+                                          }
+                                          placeholder="—"
+                                          className="w-full rounded border px-2 py-1 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="mb-1 block text-[10px] font-medium text-muted-foreground">
+                                          Nota
                                         </label>
                                         <input
                                           type="text"
