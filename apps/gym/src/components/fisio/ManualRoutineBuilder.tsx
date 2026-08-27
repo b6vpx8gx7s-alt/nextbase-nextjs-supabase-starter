@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { X, ChevronDown, ChevronRight, Pencil, Plus, Camera, Search } from 'lucide-react';
 import { ExerciseThumb } from '@/components/fisio/ExerciseThumb';
@@ -386,16 +386,36 @@ export function ManualRoutineBuilder({
     }
   };
 
-  // Group exercises by grupo_muscular preserving order from API (already sorted)
-  const grouped: [string, ExerciseWithFlags[]][] = [];
-  const seen = new Set<string>();
-  for (const ex of exercises) {
-    if (!seen.has(ex.grupo_muscular)) {
-      seen.add(ex.grupo_muscular);
-      grouped.push([ex.grupo_muscular, []]);
+  const activeDayIdx = selectedDays[activeTab] ?? -1;
+  const activeDayExercises = dayMap[activeDayIdx] ?? {};
+  const activeDayCount = Object.keys(activeDayExercises).length;
+
+  // Group exercises by grupo_muscular and sort selected-first.
+  // Dep on activeDayIdx (not dayMap) so the order freezes while the user checks
+  // boxes — it only recalculates when switching to a different day tab.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const grouped: [string, ExerciseWithFlags[]][] = useMemo(() => {
+    const snapshotSelected = dayMap[activeDayIdx] ?? {};
+    const map: [string, ExerciseWithFlags[]][] = [];
+    const seen = new Set<string>();
+    for (const ex of exercises) {
+      if (!seen.has(ex.grupo_muscular)) {
+        seen.add(ex.grupo_muscular);
+        map.push([ex.grupo_muscular, []]);
+      }
+      map.find(([g]) => g === ex.grupo_muscular)![1].push(ex);
     }
-    grouped.find(([g]) => g === ex.grupo_muscular)![1].push(ex);
-  }
+    // Within each group, put already-selected exercises first
+    return map.map(([g, exs]) => [
+      g,
+      [...exs].sort((a, b) => {
+        const aSelected = !!snapshotSelected[a.id] ? 1 : 0;
+        const bSelected = !!snapshotSelected[b.id] ? 1 : 0;
+        return bSelected - aSelected;
+      }),
+    ] as [string, ExerciseWithFlags[]]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exercises, activeDayIdx]);
 
   // When searching: filter exercises by name and keep only groups with matches
   const lowerSearch = searchQuery.trim().toLowerCase();
@@ -404,10 +424,6 @@ export function ManualRoutineBuilder({
         .map(([g, exs]) => [g, exs.filter((ex) => ex.nombre.toLowerCase().includes(lowerSearch))] as [string, ExerciseWithFlags[]])
         .filter(([, exs]) => exs.length > 0)
     : grouped;
-
-  const activeDayIdx = selectedDays[activeTab] ?? -1;
-  const activeDayExercises = dayMap[activeDayIdx] ?? {};
-  const activeDayCount = Object.keys(activeDayExercises).length;
 
   return (
     <>
