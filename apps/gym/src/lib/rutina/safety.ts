@@ -16,69 +16,31 @@ export function parseReps(rep: string): number {
  *   - Marca con caution_notes los que tienen restricción 'caution'
  */
 export async function getSafeExercises(
-  clientId: string,
+  _clientId: string,
   supabase: SupabaseClient,
   businessId: string
 ): Promise<SafeExercise[]> {
-  const [pathResult, painResult] = await Promise.all([
-    supabase.from('pathologies').select('zona_corporal').eq('client_id', clientId),
-    supabase.from('pain_map').select('zona_corporal, nivel').eq('client_id', clientId).gte('nivel', 4),
-  ]);
-
-  const userZoneStrings = [
-    ...(pathResult.data ?? []).map((p: { zona_corporal: string }) => p.zona_corporal),
-    ...(painResult.data ?? []).map((p: { zona_corporal: string }) => p.zona_corporal),
-  ];
-
-  let userCanonicalZones: string[] = [];
-  if (userZoneStrings.length > 0) {
-    const { data: aliases } = await supabase
-      .from('zone_aliases')
-      .select('zona_canonica')
-      .in('zona_usuario', userZoneStrings);
-    userCanonicalZones = [
-      ...new Set((aliases ?? []).map((a: { zona_canonica: string }) => a.zona_canonica)),
-    ];
-  }
-
+  // Gym clients have no pathologies/pain_map data (those tables FK to physio_clients).
+  // All exercises are safe by default; caution_notes are always empty for gym.
   const { data: exercises, error } = await supabase
     .from('exercises')
-    .select('id, nombre, patron, grupo_muscular, nivel, equipo, descripcion_breve, gif_url, exercise_restrictions(zona_corporal, severidad, motivo)')
+    .select('id, nombre, patron, grupo_muscular, nivel, equipo, descripcion_breve, gif_url')
     .or(`visibility.eq.public,business_id.eq.${businessId}`)
     .in('context', ['gym', 'ambos']);
 
   if (error || !exercises) throw new Error('Error fetching exercises: ' + error?.message);
 
-  const safe: SafeExercise[] = [];
-
-  for (const ex of exercises) {
-    const restrictions: { zona_corporal: string; severidad: string; motivo: string }[] =
-      (ex as { exercise_restrictions?: { zona_corporal: string; severidad: string; motivo: string }[] }).exercise_restrictions ?? [];
-
-    const forbidden = restrictions.some(
-      (r) => r.severidad === 'forbidden' && userCanonicalZones.includes(r.zona_corporal)
-    );
-    if (forbidden) continue;
-
-    const caution_notes = restrictions
-      .filter((r) => r.severidad === 'caution' && userCanonicalZones.includes(r.zona_corporal))
-      .map((r) => r.motivo)
-      .filter(Boolean);
-
-    safe.push({
-      id: (ex as { id: string }).id,
-      nombre: (ex as { nombre: string }).nombre,
-      patron: (ex as { patron: string }).patron ?? '',
-      grupo_muscular: (ex as { grupo_muscular: string }).grupo_muscular ?? '',
-      nivel: (ex as { nivel: string }).nivel ?? '',
-      equipo: (ex as { equipo: string }).equipo ?? '',
-      descripcion_breve: (ex as { descripcion_breve: string }).descripcion_breve ?? '',
-      gif_url: (ex as { gif_url?: string | null }).gif_url ?? null,
-      caution_notes,
-    });
-  }
-
-  return safe;
+  return exercises.map((ex) => ({
+    id: (ex as { id: string }).id,
+    nombre: (ex as { nombre: string }).nombre,
+    patron: (ex as { patron: string }).patron ?? '',
+    grupo_muscular: (ex as { grupo_muscular: string }).grupo_muscular ?? '',
+    nivel: (ex as { nivel: string }).nivel ?? '',
+    equipo: (ex as { equipo: string }).equipo ?? '',
+    descripcion_breve: (ex as { descripcion_breve: string }).descripcion_breve ?? '',
+    gif_url: (ex as { gif_url?: string | null }).gif_url ?? null,
+    caution_notes: [],
+  }));
 }
 
 /**
@@ -86,34 +48,16 @@ export async function getSafeExercises(
  * restriction flags so the manual builder can show 🚫/⚠️ badges.
  */
 export async function getAllExercisesWithFlags(
-  clientId: string,
+  _clientId: string,
   supabase: SupabaseClient,
   businessId: string
 ): Promise<ExerciseWithFlags[]> {
-  const [pathResult, painResult] = await Promise.all([
-    supabase.from('pathologies').select('zona_corporal').eq('client_id', clientId),
-    supabase.from('pain_map').select('zona_corporal, nivel').eq('client_id', clientId).gte('nivel', 4),
-  ]);
-
-  const userZoneStrings = [
-    ...(pathResult.data ?? []).map((p: { zona_corporal: string }) => p.zona_corporal),
-    ...(painResult.data ?? []).map((p: { zona_corporal: string }) => p.zona_corporal),
-  ];
-
-  let userCanonicalZones: string[] = [];
-  if (userZoneStrings.length > 0) {
-    const { data: aliases } = await supabase
-      .from('zone_aliases')
-      .select('zona_canonica')
-      .in('zona_usuario', userZoneStrings);
-    userCanonicalZones = [
-      ...new Set((aliases ?? []).map((a: { zona_canonica: string }) => a.zona_canonica)),
-    ];
-  }
-
+  // Gym clients have no pathologies/pain_map data (those tables FK to physio_clients).
+  // Skip the zone resolution, exercise_restrictions join, and descripcion_breve
+  // (unused by the manual builder) to minimize payload and query cost.
   const { data: exercises, error } = await supabase
     .from('exercises')
-    .select('id, nombre, patron, grupo_muscular, nivel, equipo, descripcion_breve, exercise_restrictions(zona_corporal, severidad, motivo)')
+    .select('id, nombre, patron, grupo_muscular, nivel, equipo, gif_url')
     .or(`visibility.eq.public,business_id.eq.${businessId}`)
     .in('context', ['gym', 'ambos'])
     .order('grupo_muscular')
@@ -121,31 +65,18 @@ export async function getAllExercisesWithFlags(
 
   if (error || !exercises) throw new Error('Error fetching exercises: ' + error?.message);
 
-  return exercises.map((ex) => {
-    const restrictions: { zona_corporal: string; severidad: string; motivo: string }[] =
-      (ex as { exercise_restrictions?: { zona_corporal: string; severidad: string; motivo: string }[] }).exercise_restrictions ?? [];
-
-    const forbidden = restrictions.some(
-      (r) => r.severidad === 'forbidden' && userCanonicalZones.includes(r.zona_corporal)
-    );
-    const caution_notes = restrictions
-      .filter((r) => r.severidad === 'caution' && userCanonicalZones.includes(r.zona_corporal))
-      .map((r) => r.motivo)
-      .filter(Boolean);
-
-    return {
-      id: (ex as { id: string }).id,
-      nombre: (ex as { nombre: string }).nombre,
-      patron: (ex as { patron: string }).patron ?? '',
-      grupo_muscular: (ex as { grupo_muscular: string }).grupo_muscular ?? '',
-      nivel: (ex as { nivel: string }).nivel ?? '',
-      equipo: (ex as { equipo: string }).equipo ?? '',
-      descripcion_breve: (ex as { descripcion_breve: string }).descripcion_breve ?? '',
-      gif_url: (ex as { gif_url?: string | null }).gif_url ?? null,
-      forbidden,
-      caution_notes,
-    };
-  });
+  return exercises.map((ex) => ({
+    id: (ex as { id: string }).id,
+    nombre: (ex as { nombre: string }).nombre,
+    patron: (ex as { patron: string }).patron ?? '',
+    grupo_muscular: (ex as { grupo_muscular: string }).grupo_muscular ?? '',
+    nivel: (ex as { nivel: string }).nivel ?? '',
+    equipo: (ex as { equipo: string }).equipo ?? '',
+    descripcion_breve: '',
+    gif_url: (ex as { gif_url?: string | null }).gif_url ?? null,
+    forbidden: false,
+    caution_notes: [],
+  }));
 }
 
 /**

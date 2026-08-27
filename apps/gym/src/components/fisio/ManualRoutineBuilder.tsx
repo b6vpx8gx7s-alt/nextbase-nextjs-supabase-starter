@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { X, ChevronDown, ChevronRight, Pencil, Plus, Camera } from 'lucide-react';
+import { X, ChevronDown, ChevronRight, Pencil, Plus, Camera, Search } from 'lucide-react';
 import { ExerciseThumb } from '@/components/fisio/ExerciseThumb';
 import type { PhysioRoutine, ExerciseWithFlags, DraftDia, DraftEjercicio } from '@/lib/fisio-types';
 import toast from 'react-hot-toast';
@@ -72,6 +72,7 @@ export function ManualRoutineBuilder({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const replacingGifForRef = useRef<string | null>(null);
   const replaceFileInputRef = useRef<HTMLInputElement>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const openModal = useCallback(async () => {
     if (mode === 'edit' && existingRoutine) {
@@ -119,6 +120,7 @@ export function ManualRoutineBuilder({
       setStep(1);
     }
     setActiveTab(0);
+    setSearchQuery('');
     setOpen(true);
 
     setLoadingEx(true);
@@ -393,6 +395,14 @@ export function ManualRoutineBuilder({
     grouped.find(([g]) => g === ex.grupo_muscular)![1].push(ex);
   }
 
+  // When searching: filter exercises by name and keep only groups with matches
+  const lowerSearch = searchQuery.trim().toLowerCase();
+  const visibleGrouped: [string, ExerciseWithFlags[]][] = lowerSearch
+    ? grouped
+        .map(([g, exs]) => [g, exs.filter((ex) => ex.nombre.toLowerCase().includes(lowerSearch))] as [string, ExerciseWithFlags[]])
+        .filter(([, exs]) => exs.length > 0)
+    : grouped;
+
   const activeDayIdx = selectedDays[activeTab] ?? -1;
   const activeDayExercises = dayMap[activeDayIdx] ?? {};
   const activeDayCount = Object.keys(activeDayExercises).length;
@@ -499,12 +509,37 @@ export function ManualRoutineBuilder({
                   })}
                 </div>
 
+                {/* Search bar */}
+                <div className="border-b px-6 py-2.5">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Buscar ejercicio…"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full rounded-md border bg-background py-1.5 pl-9 pr-8 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 {/* Exercise list — scrollable */}
                 <div className="max-h-[55vh] overflow-y-auto px-6 py-4 space-y-2">
                   {loadingEx ? (
                     <p className="py-10 text-center text-sm text-muted-foreground">Cargando ejercicios…</p>
+                  ) : visibleGrouped.length === 0 ? (
+                    <p className="py-10 text-center text-sm text-muted-foreground">Sin resultados para &ldquo;{searchQuery}&rdquo;</p>
                   ) : (
-                    grouped.map(([group, exs]) => {
+                    visibleGrouped.map(([group, exs]) => {
+                      const isSearching = !!lowerSearch;
                       const selectedInGroup = exs.filter((ex) => !!activeDayExercises[ex.id]).length;
                       return (
                       <div key={group}>
@@ -512,7 +547,7 @@ export function ManualRoutineBuilder({
                           onClick={() => toggleGroup(group)}
                           className="flex w-full items-center gap-2 py-1.5 text-left"
                         >
-                          {expandedGroups[group]
+                          {(isSearching || expandedGroups[group])
                             ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
                             : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
                           <span className={`text-xs font-semibold uppercase tracking-wide capitalize ${selectedInGroup > 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
@@ -526,7 +561,7 @@ export function ManualRoutineBuilder({
                           )}
                         </button>
 
-                        {expandedGroups[group] && (
+                        {(isSearching || expandedGroups[group]) && (
                           <div className="ml-6 space-y-1">
                             {exs.map((ex) => {
                               const isSelected = !!activeDayExercises[ex.id];
