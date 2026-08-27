@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseClient } from '@/supabase-clients/server';
+import { createGymAdminClient } from '@/app/api/gym/_helpers';
 
 export async function POST() {
   const supabase = await createSupabaseClient();
@@ -12,7 +13,9 @@ export async function POST() {
   } = await supabase.auth.getUser();
 
   if (user) {
-    const { data } = await supabase
+    // Use admin client: gym clients have no access to gym_clients rows (RLS owner-only)
+    const admin = createGymAdminClient();
+    const { data } = await admin
       .from('gym_client_users')
       .select('gym_clients(businesses(slug))')
       .eq('auth_user_id', user.id)
