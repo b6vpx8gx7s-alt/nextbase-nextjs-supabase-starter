@@ -44,7 +44,8 @@ export async function getSafeExercises(
   const { data: exercises, error } = await supabase
     .from('exercises')
     .select('id, nombre, patron, grupo_muscular, nivel, equipo, descripcion_breve, gif_url, exercise_restrictions(zona_corporal, severidad, motivo)')
-    .or(`visibility.eq.public,business_id.eq.${businessId}`);
+    .or(`visibility.eq.public,business_id.eq.${businessId}`)
+    .in('context', ['fisioterapia', 'ambos']);
 
   if (error || !exercises) throw new Error('Error fetching exercises: ' + error?.message);
 
@@ -114,6 +115,7 @@ export async function getAllExercisesWithFlags(
     .from('exercises')
     .select('id, nombre, patron, grupo_muscular, nivel, equipo, descripcion_breve, exercise_restrictions(zona_corporal, severidad, motivo)')
     .or(`visibility.eq.public,business_id.eq.${businessId}`)
+    .in('context', ['fisioterapia', 'ambos'])
     .order('grupo_muscular')
     .order('nombre');
 
