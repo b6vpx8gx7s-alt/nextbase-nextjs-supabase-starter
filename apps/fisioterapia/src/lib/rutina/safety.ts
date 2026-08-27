@@ -45,7 +45,8 @@ export async function getSafeExercises(
     .from('exercises')
     .select('id, nombre, patron, grupo_muscular, nivel, equipo, descripcion_breve, gif_url, exercise_restrictions(zona_corporal, severidad, motivo)')
     .or(`visibility.eq.public,business_id.eq.${businessId}`)
-    .in('context', ['fisioterapia', 'ambos']);
+    .in('context', ['fisioterapia', 'ambos'])
+    .limit(5000);
 
   if (error || !exercises) throw new Error('Error fetching exercises: ' + error?.message);
 
@@ -117,7 +118,8 @@ export async function getAllExercisesWithFlags(
     .or(`visibility.eq.public,business_id.eq.${businessId}`)
     .in('context', ['fisioterapia', 'ambos'])
     .order('grupo_muscular')
-    .order('nombre');
+    .order('nombre')
+    .limit(5000);
 
   if (error || !exercises) throw new Error('Error fetching exercises: ' + error?.message);
 
