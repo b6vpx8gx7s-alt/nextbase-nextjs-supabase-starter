@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const nombre = (body.nombre ?? '').trim();
     const grupo_muscular = (body.grupo_muscular ?? '').trim();
-    const descripcion_breve = (body.descripcion_breve ?? '').trim() || null;
+    const descripcion_breve = (body.descripcion_breve ?? '').trim() || '';
     const rawGifUrl = (body.gif_url ?? '').trim();
 
     if (!nombre) return NextResponse.json({ error: 'nombre requerido' }, { status: 400 });
