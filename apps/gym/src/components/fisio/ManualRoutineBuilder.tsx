@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { X, ChevronDown, ChevronRight, Pencil, Plus, Camera, Search } from 'lucide-react';
 import { ExerciseThumb } from '@/components/fisio/ExerciseThumb';
+import { ExerciseLightbox } from '@/components/fisio/ExerciseLightbox';
 import type { PhysioRoutine, ExerciseWithFlags, DraftDia, DraftEjercicio } from '@/lib/fisio-types';
 import toast from 'react-hot-toast';
 
@@ -614,8 +615,11 @@ export function ManualRoutineBuilder({
                                       onChange={() => toggleExercise(activeDayIdx, ex)}
                                       className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
                                     />
-                                    <div className="relative shrink-0">
-                                      <ExerciseThumb gif_url={ex.gif_url} className="h-8 w-8" />
+                                    <div
+                                      className="relative shrink-0"
+                                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                    >
+                                      <ExerciseLightbox gif_url={ex.gif_url} nombre={ex.nombre} className="h-8 w-8" />
                                       {ex.gif_url && (
                                         <button
                                           type="button"
