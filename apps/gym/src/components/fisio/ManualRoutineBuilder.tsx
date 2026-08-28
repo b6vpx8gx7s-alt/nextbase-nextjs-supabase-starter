@@ -499,7 +499,7 @@ export function ManualRoutineBuilder({
                 <input
                   ref={replaceFileInputRef}
                   type="file"
-                  accept="image/gif,image/*"
+                  accept="image/gif,image/*,video/mp4"
                   className="sr-only"
                   onChange={handleReplaceGif}
                 />
@@ -812,7 +812,7 @@ export function ManualRoutineBuilder({
                               <input
                                 ref={fileInputRef}
                                 type="file"
-                                accept="image/gif,image/*"
+                                accept="image/gif,image/*,video/mp4"
                                 className="sr-only"
                                 onChange={handleFileSelect}
                                 disabled={uploadingGif}
