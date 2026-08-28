@@ -22,14 +22,18 @@ export async function getSafeExercises(
 ): Promise<SafeExercise[]> {
   // Gym clients have no pathologies/pain_map data (those tables FK to physio_clients).
   // All exercises are safe by default; caution_notes are always empty for gym.
-  const { data: exercises, error } = await supabase
-    .from('exercises')
-    .select('id, nombre, patron, grupo_muscular, nivel, equipo, descripcion_breve, gif_url')
-    .or(`visibility.eq.public,business_id.eq.${businessId}`)
-    .in('context', ['gym', 'ambos'])
-    .range(0, 4999);
+  // Two parallel pages of 1000 to work around PostgREST's server-side db-max-rows cap.
+  const query = () =>
+    supabase
+      .from('exercises')
+      .select('id, nombre, patron, grupo_muscular, nivel, equipo, descripcion_breve, gif_url')
+      .or(`visibility.eq.public,business_id.eq.${businessId}`)
+      .in('context', ['gym', 'ambos']);
 
-  if (error || !exercises) throw new Error('Error fetching exercises: ' + error?.message);
+  const [p1, p2] = await Promise.all([query().range(0, 999), query().range(1000, 1999)]);
+  if (p1.error) throw new Error('Error fetching exercises (p1): ' + p1.error.message);
+  if (p2.error) throw new Error('Error fetching exercises (p2): ' + p2.error.message);
+  const exercises = [...(p1.data ?? []), ...(p2.data ?? [])];
 
   return exercises.map((ex) => ({
     id: (ex as { id: string }).id,
@@ -56,16 +60,20 @@ export async function getAllExercisesWithFlags(
   // Gym clients have no pathologies/pain_map data (those tables FK to physio_clients).
   // Skip the zone resolution, exercise_restrictions join, and descripcion_breve
   // (unused by the manual builder) to minimize payload and query cost.
-  const { data: exercises, error } = await supabase
-    .from('exercises')
-    .select('id, nombre, patron, grupo_muscular, nivel, equipo, gif_url')
-    .or(`visibility.eq.public,business_id.eq.${businessId}`)
-    .in('context', ['gym', 'ambos'])
-    .order('grupo_muscular')
-    .order('nombre')
-    .range(0, 4999);
+  // Two parallel pages of 1000 to work around PostgREST's server-side db-max-rows cap.
+  const query = () =>
+    supabase
+      .from('exercises')
+      .select('id, nombre, patron, grupo_muscular, nivel, equipo, gif_url')
+      .or(`visibility.eq.public,business_id.eq.${businessId}`)
+      .in('context', ['gym', 'ambos'])
+      .order('grupo_muscular')
+      .order('nombre');
 
-  if (error || !exercises) throw new Error('Error fetching exercises: ' + error?.message);
+  const [p1, p2] = await Promise.all([query().range(0, 999), query().range(1000, 1999)]);
+  if (p1.error) throw new Error('Error fetching exercises (p1): ' + p1.error.message);
+  if (p2.error) throw new Error('Error fetching exercises (p2): ' + p2.error.message);
+  const exercises = [...(p1.data ?? []), ...(p2.data ?? [])];
 
   return exercises.map((ex) => ({
     id: (ex as { id: string }).id,
