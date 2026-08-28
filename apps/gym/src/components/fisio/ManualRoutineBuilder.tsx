@@ -629,7 +629,7 @@ export function ManualRoutineBuilder({
                                             replacingGifForRef.current = ex.id;
                                             replaceFileInputRef.current?.click();
                                           }}
-                                          className="absolute inset-0 flex items-center justify-center rounded bg-black/50 opacity-0 hover:opacity-100 transition-opacity"
+                                          className="absolute inset-0 flex items-center justify-center rounded bg-black/50 opacity-0 hover:opacity-100 transition-opacity pointer-events-none hover:pointer-events-auto"
                                           title="Cambiar imagen"
                                         >
                                           <Camera className="h-3 w-3 text-white" />
