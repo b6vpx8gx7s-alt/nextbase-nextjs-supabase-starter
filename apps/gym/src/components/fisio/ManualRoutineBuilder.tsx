@@ -75,6 +75,9 @@ export function ManualRoutineBuilder({
   const [searchQuery, setSearchQuery] = useState('');
 
   const openModal = useCallback(async () => {
+    // Track pre-selected exercise IDs so we can auto-expand their groups below
+    const preSelectedIds = new Set<string>();
+
     if (mode === 'edit' && existingRoutine) {
       console.log('[ManualRoutineBuilder] edit mode — existingRoutine.id:', existingRoutine.id);
       console.log('[ManualRoutineBuilder] routine_data:', JSON.stringify(existingRoutine.routine_data));
@@ -114,6 +117,13 @@ export function ManualRoutineBuilder({
 
       console.log('[ManualRoutineBuilder] initialDayMap full:', JSON.stringify(initialDayMap));
       setDayMap(initialDayMap);
+
+      // Collect all pre-selected exercise IDs across all days so we can
+      // auto-expand their groups when the exercise catalog loads below.
+      for (const day of Object.values(initialDayMap)) {
+        for (const exId of Object.keys(day)) preSelectedIds.add(exId);
+      }
+
       setStep(2); // skip day picker — go straight to exercise builder
     } else {
       setSelectedDays([...clientDiasDisponibles].sort((a, b) => a - b));
@@ -134,8 +144,15 @@ export function ManualRoutineBuilder({
       const groups = [...new Set(list.map((e) => e.grupo_muscular))];
       const init: Record<string, boolean> = {};
       groups.forEach((g) => { init[g] = false; });
-      // Expand the first group automatically
-      if (groups[0]) init[groups[0]] = true;
+      // In edit mode: auto-expand every group that has a pre-selected exercise.
+      // In new mode: expand only the first group.
+      if (preSelectedIds.size > 0) {
+        for (const ex of list) {
+          if (preSelectedIds.has(ex.id)) init[ex.grupo_muscular] = true;
+        }
+      } else if (groups[0]) {
+        init[groups[0]] = true;
+      }
       setExpandedGroups(init);
     } catch {
       toast.error('Error al cargar el catálogo de ejercicios');
