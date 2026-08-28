@@ -41,6 +41,7 @@ export async function POST(request: Request) {
         patron: 'personalizado',
         nivel: 'intermedio',
         equipo: 'ninguno',
+        context: 'gym',
         business_id: ctx.businessId,
         visibility: 'private',
       })
