@@ -9,7 +9,6 @@ import type { PhysioRoutine, ExerciseWithFlags, DraftDia, DraftEjercicio } from 
 import toast from 'react-hot-toast';
 
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-const MUSCLE_GROUPS = ['pecho', 'hombros', 'espalda', 'piernas', 'gluteos', 'core', 'cardio', 'movilidad'];
 const SHORT_DAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
 async function uploadExerciseFile(file: File): Promise<string> {
@@ -65,7 +64,7 @@ export function ManualRoutineBuilder({
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
   const [showCustomForm, setShowCustomForm] = useState(false);
-  const [customDraft, setCustomDraft] = useState({ nombre: '', grupo_muscular: 'core', descripcion_breve: '', gif_url: '' });
+  const [customDraft, setCustomDraft] = useState({ nombre: '', grupo_muscular: '', descripcion_breve: '', gif_url: '' });
   const [savingCustom, setSavingCustom] = useState(false);
   const [suggestPrompt, setSuggestPrompt] = useState<{ id: string; nombre: string } | null>(null);
   const [uploadingGif, setUploadingGif] = useState(false);
@@ -259,7 +258,7 @@ export function ManualRoutineBuilder({
     if (gifPreviewUrl) URL.revokeObjectURL(gifPreviewUrl);
     setGifPreviewUrl(null);
     setShowCustomForm(false);
-    setCustomDraft({ nombre: '', grupo_muscular: 'core', descripcion_breve: '', gif_url: '' });
+    setCustomDraft({ nombre: '', grupo_muscular: muscleGroups[0] ?? '', descripcion_breve: '', gif_url: '' });
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -291,7 +290,7 @@ export function ManualRoutineBuilder({
       if (gifPreviewUrl) URL.revokeObjectURL(gifPreviewUrl);
       setGifPreviewUrl(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      setCustomDraft({ nombre: '', grupo_muscular: 'core', descripcion_breve: '', gif_url: '' });
+      setCustomDraft({ nombre: '', grupo_muscular: muscleGroups[0] ?? '', descripcion_breve: '', gif_url: '' });
       setShowCustomForm(false);
       toast.success(`"${exercise.nombre}" agregado`);
       setSuggestPrompt({ id: exercise.id, nombre: exercise.nombre });
@@ -442,6 +441,11 @@ export function ManualRoutineBuilder({
         .map(([g, exs]) => [g, exs.filter((ex) => ex.nombre.toLowerCase().includes(lowerSearch))] as [string, ExerciseWithFlags[]])
         .filter(([, exs]) => exs.length > 0)
     : grouped;
+
+  const muscleGroups = useMemo(
+    () => [...new Set(exercises.map((e) => e.grupo_muscular))].sort(),
+    [exercises],
+  );
 
   return (
     <>
@@ -756,7 +760,12 @@ export function ManualRoutineBuilder({
                   {/* Custom exercise button + inline form */}
                   {!showCustomForm ? (
                     <button
-                      onClick={() => setShowCustomForm(true)}
+                      onClick={() => {
+                        if (!customDraft.grupo_muscular && muscleGroups[0]) {
+                          setCustomDraft((d) => ({ ...d, grupo_muscular: muscleGroups[0] }));
+                        }
+                        setShowCustomForm(true);
+                      }}
                       className="flex w-full items-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-primary mt-2"
                     >
                       <Plus className="h-4 w-4" />
@@ -788,7 +797,7 @@ export function ManualRoutineBuilder({
                             onChange={(e) => setCustomDraft((d) => ({ ...d, grupo_muscular: e.target.value }))}
                             className="w-full rounded border px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-1 focus:ring-primary capitalize"
                           >
-                            {MUSCLE_GROUPS.map((g) => (
+                            {muscleGroups.map((g) => (
                               <option key={g} value={g}>{g}</option>
                             ))}
                           </select>
