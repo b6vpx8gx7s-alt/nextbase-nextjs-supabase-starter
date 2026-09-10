@@ -495,20 +495,27 @@ export const detectRoutineConflictsTool: RodaAITool = {
             messages: [
               {
                 role: 'user',
-                content: `Eres un fisioterapeuta analizando seguridad de ejercicios.
+                content: `ANÁLISIS DE SEGURIDAD DE EJERCICIOS
 
 Cliente: ${client.nombre}
-Limitaciones/Lesiones: ${limitations}
-Ejercicios en rutina: ${exerciseNames.join(', ')}
+Limitaciones: ${limitations}
+Ejercicios: ${exerciseNames.join(', ')}
 
-Analiza si hay CUALQUIER riesgo potencial entre las limitaciones y los ejercicios.
-Sé conservador: si hay duda, marca como conflicto.
+MAPA DE RIESGOS POR LIMITACIÓN:
+- Dolor/lesión de RODILLA: evitar sentadillas, leg press, extensiones de pierna, saltos
+- Dolor/lesión de ESPALDA: evitar remo, peso muerto, hiperextensiones, flexiones profundas
+- Dolor/lesión de HOMBRO: evitar press, laterales, dominadas
+- Problema CARDIOVASCULAR: evitar cardio intenso, circuitos pesados
 
-Responde SOLO en JSON:
+Revisa CADA ejercicio:
+1. ¿Están las limitaciones del cliente en "${limitations}"?
+2. ¿Están los ejercicios en "${exerciseNames.join(', ')}"?
+3. ¿Hay coincidencia en el mapa de riesgos arriba?
+
+Responde SOLO JSON:
 {
   "hasConflict": boolean,
-  "conflictingExercises": ["ejercicio1"],
-  "explanation": "por qué conflictúa",
+  "analysis": [{"exercise": "nombre", "limitation": "limitación", "risk": "descripción"}],
   "recommendation": "qué cambiar",
   "severity": "high|medium|low"
 }`,
