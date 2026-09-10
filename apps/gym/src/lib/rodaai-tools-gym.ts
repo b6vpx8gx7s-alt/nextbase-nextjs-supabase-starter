@@ -403,7 +403,8 @@ Si no hay lesiones, retorna {"injuries": [], "hasProblem": false}`,
         try {
           const textContent = response.content[0]
           if (textContent.type === 'text') {
-            const analysisResult = JSON.parse(textContent.text)
+            const cleanedText = textContent.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+            const analysisResult = JSON.parse(cleanedText)
 
             if (analysisResult.injuries && analysisResult.injuries.length > 0) {
               for (const injury of analysisResult.injuries) {
@@ -503,7 +504,6 @@ export const detectRoutineConflictsTool: RodaAITool = {
         if (exerciseNames.length === 0) continue;
 
         try {
-          console.log('[DEBUG] Cliente:', client.nombre, 'Limitaciones:', limitations, 'Ejercicios:', exerciseNames.join(', '))
           const response = await anthropic.messages.create({
             model: 'claude-haiku-4-5-20251001',
             max_tokens: 300,
@@ -541,7 +541,8 @@ Responde SOLO JSON:
 
           const textContent = response.content[0];
           if (textContent.type === 'text') {
-            const analysisResult = JSON.parse(textContent.text);
+            const cleanedText = textContent.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+            const analysisResult = JSON.parse(cleanedText);
             if (analysisResult.hasConflict) {
               conflicts.push({
                 clientId: client.id as string,
