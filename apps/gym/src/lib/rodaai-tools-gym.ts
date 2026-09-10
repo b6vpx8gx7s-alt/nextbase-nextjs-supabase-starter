@@ -482,9 +482,23 @@ export const detectRoutineConflictsTool: RodaAITool = {
       for (const routine of routines) {
         if (routine.estado !== 'activa' && routine.estado !== 'generada') continue;
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const routineObj = (routine.routine_data ?? {}) as Record<string, any>;
-        const exerciseNames = Object.keys(routineObj).slice(0, 10);
+        let exerciseNames: string[] = [];
+        let exerciseNotes: string[] = [];
+        if (routine.routine_data && typeof routine.routine_data === 'object') {
+          const routineObj = routine.routine_data as { dias?: Array<{ ejercicios?: Array<{ nombre: string; nota?: string }> }> };
+          if (routineObj.dias) {
+            for (const dia of routineObj.dias) {
+              if (dia.ejercicios) {
+                for (const ejercicio of dia.ejercicios) {
+                  exerciseNames.push(ejercicio.nombre);
+                  if (ejercicio.nota) {
+                    exerciseNotes.push(`${ejercicio.nombre}: ${ejercicio.nota}`);
+                  }
+                }
+              }
+            }
+          }
+        }
 
         if (exerciseNames.length === 0) continue;
 
@@ -500,6 +514,7 @@ export const detectRoutineConflictsTool: RodaAITool = {
 Cliente: ${client.nombre}
 Limitaciones: ${limitations}
 Ejercicios: ${exerciseNames.join(', ')}
+${exerciseNotes.length > 0 ? `\nNotas existentes en la rutina:\n${exerciseNotes.join('\n')}` : ''}
 
 MAPA DE RIESGOS POR LIMITACIÓN:
 - Dolor/lesión de RODILLA: evitar sentadillas, leg press, extensiones de pierna, saltos
