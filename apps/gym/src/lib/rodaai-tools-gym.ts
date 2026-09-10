@@ -172,8 +172,48 @@ export const getWorkoutHistoryTool: RodaAITool = {
   },
 };
 
+export const searchClientsTool: RodaAITool = {
+  name: 'search_clients',
+  description: 'Busca y lista clientes por nombre o retorna todos si la búsqueda está vacía',
+  category: 'gym',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      name: {
+        type: 'string',
+        description: 'Nombre del cliente a buscar (vacío para listar todos)',
+      },
+    },
+    required: ['name'],
+  },
+  execute: async (context: RodaAIBusinessContext, params: RodaAIToolInput) => {
+    const supabase = createGymAdminClient();
+    const searchName = params.name as string;
+
+    let query = supabase
+      .from('gym_clients')
+      .select('id, nombre, email, objetivo_principal, nivel_entrenamiento')
+      .eq('business_id', context.businessId);
+
+    if (searchName?.trim()) {
+      query = query.ilike('nombre', `%${searchName}%`);
+    }
+
+    const { data: clients, error } = await query.order('nombre').limit(20);
+
+    if (error) throw error;
+
+    return {
+      success: true,
+      count: clients?.length ?? 0,
+      clients: clients ?? [],
+    };
+  },
+};
+
 export const GYM_TOOLS: RodaAITool[] = [
   getClientProfileTool,
   getActiveRoutinesTool,
   getWorkoutHistoryTool,
+  searchClientsTool,
 ];
