@@ -495,15 +495,21 @@ export const detectRoutineConflictsTool: RodaAITool = {
             messages: [
               {
                 role: 'user',
-                content: `Cliente: ${client.nombre}
-Limitaciones: ${limitations}
+                content: `Eres un fisioterapeuta analizando seguridad de ejercicios.
+
+Cliente: ${client.nombre}
+Limitaciones/Lesiones: ${limitations}
 Ejercicios en rutina: ${exerciseNames.join(', ')}
 
-¿Hay conflictos entre las limitaciones y los ejercicios? Responde SOLO en JSON:
+Analiza si hay CUALQUIER riesgo potencial entre las limitaciones y los ejercicios.
+Sé conservador: si hay duda, marca como conflicto.
+
+Responde SOLO en JSON:
 {
   "hasConflict": boolean,
-  "conflictingExercises": ["ejercicio1", "ejercicio2"],
-  "recommendation": "recomendación breve",
+  "conflictingExercises": ["ejercicio1"],
+  "explanation": "por qué conflictúa",
+  "recommendation": "qué cambiar",
   "severity": "high|medium|low"
 }`,
               },
