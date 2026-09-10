@@ -1,8 +1,10 @@
-import { createSupabaseClient } from '@/supabase-clients/server';
-import { createAdminClient } from '@/supabase-clients/admin';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { AppSidebar } from './app-sidebar';
+import { RodaAIPanel } from '@/components/RodaAIPanel';
+import { getRodaAIBusinessContext, type RodaAIBusinessContext } from '@/lib/rodaai-business';
+import { createSupabaseClient } from '@/supabase-clients/server';
+import { createAdminClient } from '@/supabase-clients/admin';
 
 async function AuthGuard({ children }: { children: ReactNode }) {
   const supabase = await createSupabaseClient();
@@ -14,7 +16,6 @@ async function AuthGuard({ children }: { children: ReactNode }) {
     redirect('/login');
   }
 
-  // Use service-role client so RLS never silently blocks these reads.
   const admin = createAdminClient();
   const [profileRes, employeeRes] = await Promise.all([
     admin.from('profiles').select('business_id').eq('user_id', user!.id).maybeSingle(),
@@ -47,13 +48,28 @@ async function AuthGuard({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-export default function AppLayout({ children }: { children: ReactNode }) {
+export default async function AppLayout({ children }: { children: ReactNode }) {
+  const supabase = await createSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let rodaaiContext: RodaAIBusinessContext | null = null;
+  if (user) {
+    try {
+      rodaaiContext = await getRodaAIBusinessContext(user.id);
+    } catch {
+      // Sin contexto válido: panel no se muestra
+    }
+  }
+
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen">
       <AppSidebar />
       <main className="flex-1 overflow-auto">
         <AuthGuard>{children}</AuthGuard>
       </main>
+      {rodaaiContext && <RodaAIPanel context={rodaaiContext} />}
     </div>
   );
 }
