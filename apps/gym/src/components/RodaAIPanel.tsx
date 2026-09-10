@@ -7,6 +7,8 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  toolsUsed?: Array<{ name: string; params: any }>;
 }
 
 export interface RodaAIPanelProps {
@@ -17,6 +19,7 @@ export function RodaAIPanel({ context }: RodaAIPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [conversationId, setConversationId] = useState<string | undefined>();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -38,6 +41,7 @@ export function RodaAIPanel({ context }: RodaAIPanelProps) {
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    const inputValue = input;
     setInput('');
     setLoading(true);
 
@@ -45,29 +49,29 @@ export function RodaAIPanel({ context }: RodaAIPanelProps) {
       const response = await fetch('/api/gym/rodaai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: input }),
+        body: JSON.stringify({ message: inputValue, conversationId }),
       });
 
-      if (!response.ok) throw new Error('Failed to send message');
+      if (!response.ok) throw new Error(`Failed: ${response.status}`);
 
       const data = await response.json();
 
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: data.message,
-        timestamp: new Date().toISOString(),
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
-    } catch (error) {
-      console.error('[RodaAI Error]', error);
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: 'Error al conectar con RodaAI. Intenta de nuevo.',
+          content: data.message,
           timestamp: new Date().toISOString(),
+          toolsUsed: data.toolsUsed,
         },
+      ]);
+      if (data.conversationId) setConversationId(data.conversationId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error desconocido';
+      console.error('[RodaAI Error]', message);
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: `Error: ${message}`, timestamp: new Date().toISOString() },
       ]);
     } finally {
       setLoading(false);
@@ -107,7 +111,12 @@ export function RodaAIPanel({ context }: RodaAIPanelProps) {
                 msg.role === 'user' ? 'bg-[#1B8BA8] text-white' : 'bg-gray-100 text-gray-900'
               }`}
             >
-              {msg.content}
+              <p>{msg.content}</p>
+              {msg.toolsUsed && msg.toolsUsed.length > 0 && (
+                <p className="text-xs text-gray-600 mt-2 border-t pt-2">
+                  🔧 Usé: {msg.toolsUsed.map((t) => t.name).join(', ')}
+                </p>
+              )}
             </div>
           </div>
         ))}
@@ -117,7 +126,7 @@ export function RodaAIPanel({ context }: RodaAIPanelProps) {
             <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs">
               🤖
             </div>
-            <div className="bg-gray-100 rounded-lg p-3 text-sm text-gray-500">Escribiendo...</div>
+            <div className="bg-gray-100 rounded-lg p-3 text-sm text-gray-500">Pensando...</div>
           </div>
         )}
 
