@@ -310,23 +310,9 @@ export const analyzeInjuryNotesTool: RodaAITool = {
   execute: async (context: RodaAIBusinessContext) => {
     const supabase = createGymAdminClient()
 
-    // Obtener clientes del negocio con sus sesiones y notas
     const { data: clients } = await supabase
       .from('gym_clients')
-      .select(
-        `
-        id,
-        nombre,
-        gym_workout_sessions (
-          id,
-          trained_at,
-          gym_set_logs (
-            nota,
-            created_at
-          )
-        )
-      `
-      )
+      .select('id, nombre')
       .eq('business_id', context.businessId)
 
     if (!clients || clients.length === 0) {
@@ -335,6 +321,27 @@ export const analyzeInjuryNotesTool: RodaAITool = {
         injuries: [],
         totalDetected: 0,
         message: 'No hay clientes registrados',
+      }
+    }
+
+    const clientIds = clients.map((c) => c.id as string)
+    const clientMap = Object.fromEntries(clients.map((c) => [c.id as string, c.nombre as string]))
+
+    // Query directo desde sesiones para evitar join anidado triple que puede fallar
+    const { data: sessions } = await supabase
+      .from('gym_workout_sessions')
+      .select('id, client_id, trained_at, gym_set_logs ( nota, created_at )')
+      .in('client_id', clientIds)
+
+    // Agrupar notas por cliente
+    const notesByClient: Record<string, Array<{ nota: string; sessionDate: string }>> = {}
+    for (const session of sessions ?? []) {
+      const cid = session.client_id as string
+      if (!notesByClient[cid]) notesByClient[cid] = []
+      for (const log of (session.gym_set_logs as Array<{ nota: string | null; created_at: string }> | null) ?? []) {
+        if (log.nota && log.nota.trim()) {
+          notesByClient[cid].push({ nota: log.nota, sessionDate: session.trained_at as string })
+        }
       }
     }
 
@@ -348,27 +355,9 @@ export const analyzeInjuryNotesTool: RodaAITool = {
       confidence: 'high' | 'medium' | 'low'
     }> = []
 
-    // Analizar notas de cada cliente
-    for (const client of clients) {
-      const allNotes: Array<{ nota: string; sessionDate: string }> = []
+    for (const clientId of clientIds) {
+      const allNotes = notesByClient[clientId] ?? []
 
-      // Recolectar todas las notas del cliente
-      if (client.gym_workout_sessions) {
-        for (const session of client.gym_workout_sessions) {
-          if (session.gym_set_logs) {
-            for (const log of session.gym_set_logs) {
-              if (log.nota && log.nota.trim()) {
-                allNotes.push({
-                  nota: log.nota,
-                  sessionDate: session.trained_at,
-                })
-              }
-            }
-          }
-        }
-      }
-
-      // Si hay notas, analizarlas con Claude
       if (allNotes.length > 0) {
         const notesText = allNotes.map((n) => `[${n.sessionDate}] ${n.nota}`).join('\n')
 
@@ -409,8 +398,8 @@ Si no hay lesiones, retorna {"injuries": [], "hasProblem": false}`,
             if (analysisResult.injuries && analysisResult.injuries.length > 0) {
               for (const injury of analysisResult.injuries) {
                 injuries.push({
-                  clientId: client.id,
-                  clientName: client.nombre,
+                  clientId,
+                  clientName: clientMap[clientId] ?? clientId,
                   injuryType: injury.type,
                   description: injury.description,
                   detectedIn: injury.detectedIn.substring(0, 100),
@@ -421,7 +410,7 @@ Si no hay lesiones, retorna {"injuries": [], "hasProblem": false}`,
             }
           }
         } catch (parseError) {
-          console.error(`[RodaAI] Error parsing Claude response for ${client.nombre}:`, parseError)
+          console.error(`[RodaAI] Error parsing Claude response for ${clientMap[clientId] ?? clientId}:`, parseError)
         }
       }
     }
@@ -550,7 +539,7 @@ IMPORTANTE: Responde con JSON breve y compacto. Máximo 2 ejercicios en conflict
                 clientId: client.id as string,
                 clientName: client.nombre as string,
                 limitation: limitations,
-                conflictingExercises: analysisResult.conflictingExercises ?? [],
+                conflictingExercises: (analysisResult.analysis ?? []).map((a: { exercise: string }) => a.exercise),
                 routineWeek: routine.semana as number,
                 recommendation: analysisResult.recommendation,
                 severity: analysisResult.severity,

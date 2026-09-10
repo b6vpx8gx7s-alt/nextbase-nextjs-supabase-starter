@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     // Crear conversación si no existe
     let conversId = conversationId;
     if (!conversId) {
-      const { data: newConv } = await supabase
+      const { data: newConv, error: convInsertError } = await supabase
         .from('rodaai_conversations')
         .insert({
           business_id: businessContext.businessId,
@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
         })
         .select('id')
         .single();
+      if (convInsertError) console.error('[RodaAI] Error creating conversation:', convInsertError.message);
       conversId = newConv?.id;
     }
 
@@ -120,7 +121,7 @@ export async function POST(request: NextRequest) {
         .eq('id', conversId)
         .single();
 
-      await supabase
+      const { error: convUpdateError } = await supabase
         .from('rodaai_conversations')
         .update({
           messages: [
@@ -134,6 +135,7 @@ export async function POST(request: NextRequest) {
           ],
         })
         .eq('id', conversId);
+      if (convUpdateError) console.error('[RodaAI] Error updating conversation:', convUpdateError.message);
     }
 
     return { ok: true, message: fullResponse, conversationId: conversId, toolsUsed };
