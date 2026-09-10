@@ -211,9 +211,92 @@ export const searchClientsTool: RodaAITool = {
   },
 };
 
+export const getClientAlertsTool: RodaAITool = {
+  name: 'get_client_alerts',
+  description: 'Obtiene clientes que requieren atención (sin rutina, inactivos, sin actividad)',
+  category: 'gym',
+  inputSchema: {
+    type: 'object',
+    properties: {},
+    required: [],
+  },
+  execute: async (context: RodaAIBusinessContext, _params: RodaAIToolInput) => {
+    const supabase = createGymAdminClient();
+
+    // Todos los clientes del negocio
+    const { data: allClients } = await supabase
+      .from('gym_clients')
+      .select('id, nombre')
+      .eq('business_id', context.businessId);
+
+    const clientIds = (allClients ?? []).map((c) => c.id as string);
+
+    // IDs con rutina activa
+    const { data: activeRoutines } = await supabase
+      .from('gym_routines')
+      .select('client_id')
+      .eq('business_id', context.businessId)
+      .eq('estado', 'activa');
+
+    const withActiveRoutine = new Set((activeRoutines ?? []).map((r) => r.client_id as string));
+    const noRoutineClients = (allClients ?? []).filter((c) => !withActiveRoutine.has(c.id as string));
+
+    // Sesiones de las últimas 2 semanas
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+    const { data: recentSessions } = clientIds.length
+      ? await supabase
+          .from('gym_workout_sessions')
+          .select('client_id, trained_at')
+          .eq('business_id', context.businessId)
+          .gte('trained_at', twoWeeksAgo.toISOString().split('T')[0])
+      : { data: [] };
+
+    const withRecentSession = new Set((recentSessions ?? []).map((s) => s.client_id as string));
+
+    const { data: anySessions } = clientIds.length
+      ? await supabase
+          .from('gym_workout_sessions')
+          .select('client_id')
+          .eq('business_id', context.businessId)
+      : { data: [] };
+
+    const withAnySession = new Set((anySessions ?? []).map((s) => s.client_id as string));
+
+    const inactiveClients = (allClients ?? []).filter(
+      (c) => withAnySession.has(c.id as string) && !withRecentSession.has(c.id as string)
+    );
+    const noActivityClients = (allClients ?? []).filter((c) => !withAnySession.has(c.id as string));
+
+    return {
+      success: true,
+      alerts: {
+        noRoutine: {
+          count: noRoutineClients.length,
+          clients: noRoutineClients,
+          description: 'Clientes sin rutina vigente',
+        },
+        inactive: {
+          count: inactiveClients.length,
+          clients: inactiveClients,
+          description: 'Clientes inactivos (últimas 2 semanas)',
+        },
+        noActivity: {
+          count: noActivityClients.length,
+          clients: noActivityClients,
+          description: 'Clientes sin actividad registrada',
+        },
+      },
+      totalAlerts: noRoutineClients.length + inactiveClients.length + noActivityClients.length,
+    };
+  },
+};
+
 export const GYM_TOOLS: RodaAITool[] = [
   getClientProfileTool,
   getActiveRoutinesTool,
   getWorkoutHistoryTool,
   searchClientsTool,
+  getClientAlertsTool,
 ];
