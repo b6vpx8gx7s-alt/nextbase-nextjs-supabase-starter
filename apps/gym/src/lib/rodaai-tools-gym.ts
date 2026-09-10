@@ -1,6 +1,11 @@
+import Anthropic from '@anthropic-ai/sdk'
 import { createGymAdminClient } from '@/app/api/gym/_helpers';
 import { type RodaAIBusinessContext } from './rodaai-business';
 import { type RodaAITool, type RodaAIToolInput } from './rodaai-tools';
+
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+})
 
 export const getClientProfileTool: RodaAITool = {
   name: 'get_client_profile',
@@ -293,10 +298,149 @@ export const getClientAlertsTool: RodaAITool = {
   },
 };
 
+export const analyzeInjuryNotesTool: RodaAITool = {
+  name: 'analyze_injury_notes',
+  description: 'Detecta automáticamente lesiones/dolor en notas de sesiones de entrenamiento',
+  category: 'gym',
+  inputSchema: {
+    type: 'object',
+    properties: {},
+    required: [],
+  },
+  execute: async (context: RodaAIBusinessContext) => {
+    const supabase = createGymAdminClient()
+
+    // Obtener clientes del negocio con sus sesiones y notas
+    const { data: clients } = await supabase
+      .from('gym_clients')
+      .select(
+        `
+        id,
+        nombre,
+        gym_workout_sessions (
+          id,
+          trained_at,
+          gym_set_logs (
+            nota,
+            created_at
+          )
+        )
+      `
+      )
+      .eq('business_id', context.businessId)
+
+    if (!clients || clients.length === 0) {
+      return {
+        success: true,
+        injuries: [],
+        totalDetected: 0,
+        message: 'No hay clientes registrados',
+      }
+    }
+
+    const injuries: Array<{
+      clientId: string
+      clientName: string
+      injuryType: string
+      description: string
+      detectedIn: string
+      sessionDate: string
+      confidence: 'high' | 'medium' | 'low'
+    }> = []
+
+    // Analizar notas de cada cliente
+    for (const client of clients) {
+      const allNotes: Array<{ nota: string; sessionDate: string }> = []
+
+      // Recolectar todas las notas del cliente
+      if (client.gym_workout_sessions) {
+        for (const session of client.gym_workout_sessions) {
+          if (session.gym_set_logs) {
+            for (const log of session.gym_set_logs) {
+              if (log.nota && log.nota.trim()) {
+                allNotes.push({
+                  nota: log.nota,
+                  sessionDate: session.trained_at,
+                })
+              }
+            }
+          }
+        }
+      }
+
+      // Si hay notas, analizarlas con Claude
+      if (allNotes.length > 0) {
+        const notesText = allNotes.map((n) => `[${n.sessionDate}] ${n.nota}`).join('\n')
+
+        const response = await anthropic.messages.create({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 500,
+          messages: [
+            {
+              role: 'user',
+              content: `Analiza estas notas de sesiones de entrenamiento y detecta CUALQUIER mención de lesión, dolor, molestia o limitación. Responde SOLO en JSON válido, sin markdown:
+
+${notesText}
+
+Responde así:
+{
+  "injuries": [
+    {
+      "type": "tipo de lesión",
+      "description": "descripción breve",
+      "detectedIn": "texto original donde se menciona",
+      "confidence": "high|medium|low"
+    }
+  ],
+  "hasProblem": boolean
+}
+
+Si no hay lesiones, retorna {"injuries": [], "hasProblem": false}`,
+            },
+          ],
+        })
+
+        try {
+          const textContent = response.content[0]
+          if (textContent.type === 'text') {
+            const analysisResult = JSON.parse(textContent.text)
+
+            if (analysisResult.injuries && analysisResult.injuries.length > 0) {
+              for (const injury of analysisResult.injuries) {
+                injuries.push({
+                  clientId: client.id,
+                  clientName: client.nombre,
+                  injuryType: injury.type,
+                  description: injury.description,
+                  detectedIn: injury.detectedIn.substring(0, 100),
+                  sessionDate: allNotes[0].sessionDate,
+                  confidence: injury.confidence,
+                })
+              }
+            }
+          }
+        } catch (parseError) {
+          console.error(`[RodaAI] Error parsing Claude response for ${client.nombre}:`, parseError)
+        }
+      }
+    }
+
+    return {
+      success: true,
+      injuries,
+      totalDetected: injuries.length,
+      summary: injuries.length > 0
+        ? `Detectadas ${injuries.length} lesiones/molestias potenciales`
+        : 'No se detectaron lesiones en las notas disponibles',
+    }
+  },
+}
+
 export const GYM_TOOLS: RodaAITool[] = [
   getClientProfileTool,
   getActiveRoutinesTool,
   getWorkoutHistoryTool,
   searchClientsTool,
   getClientAlertsTool,
+  analyzeInjuryNotesTool,
 ];
