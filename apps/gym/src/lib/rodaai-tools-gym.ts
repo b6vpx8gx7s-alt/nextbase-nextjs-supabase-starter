@@ -503,6 +503,7 @@ export const detectRoutineConflictsTool: RodaAITool = {
         if (exerciseNames.length === 0) continue;
 
         try {
+          console.log('[DEBUG] Cliente:', client.nombre, 'Limitaciones:', limitations, 'Ejercicios:', exerciseNames.join(', '))
           const response = await anthropic.messages.create({
             model: 'claude-haiku-4-5-20251001',
             max_tokens: 300,
