@@ -236,7 +236,7 @@ export const getClientAlertsTool: RodaAITool = {
       .from('gym_routines')
       .select('client_id')
       .eq('business_id', context.businessId)
-      .eq('estado', 'activa');
+      .in('estado', ['activa', 'generada']);
 
     const withActiveRoutine = new Set((activeRoutines ?? []).map((r) => r.client_id as string));
     const noRoutineClients = (allClients ?? []).filter((c) => !withActiveRoutine.has(c.id as string));
