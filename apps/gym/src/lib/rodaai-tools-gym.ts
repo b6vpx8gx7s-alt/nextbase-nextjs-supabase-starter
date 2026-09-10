@@ -436,6 +436,112 @@ Si no hay lesiones, retorna {"injuries": [], "hasProblem": false}`,
   },
 }
 
+export const detectRoutineConflictsTool: RodaAITool = {
+  name: 'detect_routine_conflicts',
+  description: 'Detecta conflictos entre limitaciones de clientes y ejercicios en sus rutinas',
+  category: 'gym',
+  inputSchema: {
+    type: 'object',
+    properties: {},
+    required: [],
+  },
+  execute: async (context: RodaAIBusinessContext, _params: RodaAIToolInput) => {
+    const supabase = createGymAdminClient();
+
+    const { data: clients } = await supabase
+      .from('gym_clients')
+      .select(
+        `id, nombre, lesion_actual, problema_cardiovascular, zona_a_mejorar,
+         gym_routines ( id, semana, routine_data, estado )`
+      )
+      .eq('business_id', context.businessId);
+
+    if (!clients || clients.length === 0) {
+      return { success: true, conflicts: [], totalConflicts: 0, message: 'No hay clientes registrados' };
+    }
+
+    const conflicts: Array<{
+      clientId: string;
+      clientName: string;
+      limitation: string;
+      conflictingExercises: string[];
+      routineWeek: number;
+      recommendation: string;
+      severity: 'high' | 'medium' | 'low';
+    }> = [];
+
+    for (const client of clients) {
+      if (!client.lesion_actual && !client.problema_cardiovascular && !client.zona_a_mejorar) continue;
+
+      const limitations = [client.lesion_actual, client.problema_cardiovascular, client.zona_a_mejorar]
+        .filter((l) => l && (l as string).trim())
+        .join(', ');
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const routines = (client.gym_routines as any[]) ?? [];
+      for (const routine of routines) {
+        if (routine.estado !== 'activa' && routine.estado !== 'generada') continue;
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const routineObj = (routine.routine_data ?? {}) as Record<string, any>;
+        const exerciseNames = Object.keys(routineObj).slice(0, 10);
+
+        if (exerciseNames.length === 0) continue;
+
+        try {
+          const response = await anthropic.messages.create({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 300,
+            messages: [
+              {
+                role: 'user',
+                content: `Cliente: ${client.nombre}
+Limitaciones: ${limitations}
+Ejercicios en rutina: ${exerciseNames.join(', ')}
+
+¿Hay conflictos entre las limitaciones y los ejercicios? Responde SOLO en JSON:
+{
+  "hasConflict": boolean,
+  "conflictingExercises": ["ejercicio1", "ejercicio2"],
+  "recommendation": "recomendación breve",
+  "severity": "high|medium|low"
+}`,
+              },
+            ],
+          });
+
+          const textContent = response.content[0];
+          if (textContent.type === 'text') {
+            const analysisResult = JSON.parse(textContent.text);
+            if (analysisResult.hasConflict) {
+              conflicts.push({
+                clientId: client.id as string,
+                clientName: client.nombre as string,
+                limitation: limitations,
+                conflictingExercises: analysisResult.conflictingExercises ?? [],
+                routineWeek: routine.semana as number,
+                recommendation: analysisResult.recommendation,
+                severity: analysisResult.severity,
+              });
+            }
+          }
+        } catch (parseError) {
+          console.error(`[RodaAI] Error parsing Claude response for ${client.nombre}:`, parseError);
+        }
+      }
+    }
+
+    return {
+      success: true,
+      conflicts,
+      totalConflicts: conflicts.length,
+      summary: conflicts.length > 0
+        ? `Detectados ${conflicts.length} conflictos potenciales`
+        : 'No se detectaron conflictos entre limitaciones y rutinas',
+    };
+  },
+};
+
 export const GYM_TOOLS: RodaAITool[] = [
   getClientProfileTool,
   getActiveRoutinesTool,
@@ -443,4 +549,5 @@ export const GYM_TOOLS: RodaAITool[] = [
   searchClientsTool,
   getClientAlertsTool,
   analyzeInjuryNotesTool,
+  detectRoutineConflictsTool,
 ];
