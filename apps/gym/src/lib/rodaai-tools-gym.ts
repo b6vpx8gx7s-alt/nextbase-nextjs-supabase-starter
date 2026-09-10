@@ -506,7 +506,7 @@ export const detectRoutineConflictsTool: RodaAITool = {
         try {
           const response = await anthropic.messages.create({
             model: 'claude-haiku-4-5-20251001',
-            max_tokens: 300,
+            max_tokens: 1024,
             messages: [
               {
                 role: 'user',
@@ -534,7 +534,9 @@ Responde SOLO JSON:
   "analysis": [{"exercise": "nombre", "limitation": "limitación", "risk": "descripción"}],
   "recommendation": "qué cambiar",
   "severity": "high|medium|low"
-}`,
+}
+
+IMPORTANTE: Responde con JSON breve y compacto. Máximo 2 ejercicios en conflictingExercises. Explanation y recommendation de máximo 20 palabras cada uno.`,
               },
             ],
           });
