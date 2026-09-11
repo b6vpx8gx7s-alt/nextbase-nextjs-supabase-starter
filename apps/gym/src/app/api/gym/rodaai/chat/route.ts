@@ -30,9 +30,11 @@ export async function POST(request: NextRequest) {
 
     const supabase = createGymAdminClient();
 
-    // Crear conversación si no existe
+    const isNewConversation = !conversationId;
     let conversId = conversationId;
-    if (!conversId) {
+    let priorMessages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+
+    if (isNewConversation) {
       const { data: newConv, error: convInsertError } = await supabase
         .from('rodaai_conversations')
         .insert({
@@ -46,9 +48,21 @@ export async function POST(request: NextRequest) {
         .single();
       if (convInsertError) console.error('[RodaAI] Error creating conversation:', convInsertError.message);
       conversId = newConv?.id;
+    } else {
+      const { data: conv } = await supabase
+        .from('rodaai_conversations')
+        .select('messages')
+        .eq('id', conversId)
+        .single();
+      const stored = (conv?.messages as Array<{ role: string; content: string }>) ?? [];
+      priorMessages = stored.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
     }
 
-    let messages: Anthropic.Messages.MessageParam[] = [{ role: 'user', content: message }];
+    // Historia previa + nuevo mensaje del usuario
+    let messages: Anthropic.Messages.MessageParam[] = [
+      ...priorMessages,
+      { role: 'user', content: message },
+    ];
     let fullResponse = '';
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const toolsUsed: Array<{ name: string; params: any }> = [];
@@ -119,25 +133,31 @@ export async function POST(request: NextRequest) {
 
     // Persistir respuesta en la conversación
     if (conversId) {
-      const { data: conv } = await supabase
-        .from('rodaai_conversations')
-        .select('messages')
-        .eq('id', conversId)
-        .single();
+      let updatedMessages: unknown[];
+
+      if (isNewConversation) {
+        // INSERT ya guardó el primer user message; solo agregar la respuesta del assistant
+        const { data: conv } = await supabase
+          .from('rodaai_conversations')
+          .select('messages')
+          .eq('id', conversId)
+          .single();
+        updatedMessages = [
+          ...((conv?.messages as unknown[]) ?? []),
+          { role: 'assistant', content: fullResponse, timestamp: new Date().toISOString(), toolsUsed },
+        ];
+      } else {
+        // Usar el historial ya cargado + este turno completo (user + assistant)
+        updatedMessages = [
+          ...priorMessages,
+          { role: 'user', content: message, timestamp: new Date().toISOString() },
+          { role: 'assistant', content: fullResponse, timestamp: new Date().toISOString(), toolsUsed },
+        ];
+      }
 
       const { error: convUpdateError } = await supabase
         .from('rodaai_conversations')
-        .update({
-          messages: [
-            ...((conv?.messages as unknown[]) ?? []),
-            {
-              role: 'assistant',
-              content: fullResponse,
-              timestamp: new Date().toISOString(),
-              toolsUsed,
-            },
-          ],
-        })
+        .update({ messages: updatedMessages })
         .eq('id', conversId);
       if (convUpdateError) console.error('[RodaAI] Error updating conversation:', convUpdateError.message);
     }
