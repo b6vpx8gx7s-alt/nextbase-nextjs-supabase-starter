@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { type RodaAIBusinessContext } from '@/lib/rodaai-business'
 
 interface Message {
@@ -37,7 +37,7 @@ export function RodaAIPanel({ context }: RodaAIPanelProps) {
     if (isOpen) scrollToBottom()
   }, [messages, isOpen])
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || loading) return
 
     const userMessage: Message = {
@@ -85,7 +85,18 @@ export function RodaAIPanel({ context }: RodaAIPanelProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [loading, conversationId, isOpen])
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const customEvent = e as CustomEvent<{ message: string }>
+      setIsOpen(true)
+      setHasUnread(false)
+      sendMessage(customEvent.detail.message)
+    }
+    window.addEventListener('rodaai:open-with-message', handler)
+    return () => window.removeEventListener('rodaai:open-with-message', handler)
+  }, [sendMessage])
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault()

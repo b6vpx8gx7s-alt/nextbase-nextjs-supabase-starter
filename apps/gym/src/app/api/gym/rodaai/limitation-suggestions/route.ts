@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 import { withRodaAIContext } from '../context'
 import { createGymAdminClient } from '@/app/api/gym/_helpers'
+import { getRodaAIBusinessContext } from '@/lib/rodaai-business'
+import { detectRoutineConflictsTool } from '@/lib/rodaai-tools-gym'
 
 export async function GET(request: NextRequest) {
   return withRodaAIContext(request, async (context) => {
@@ -36,10 +38,12 @@ export async function POST(request: NextRequest) {
 
     if (fetchError || !suggestion) throw new Error('Sugerencia no encontrada')
 
+    let conflictCheck: { hasConflicts: boolean; clientName?: string; summary?: string } | null = null
+
     if (action === 'accept') {
       const { data: client } = await supabase
         .from('gym_clients')
-        .select('lesion_actual')
+        .select('lesion_actual, nombre')
         .eq('id', suggestion.client_id)
         .single()
 
@@ -53,6 +57,22 @@ export async function POST(request: NextRequest) {
         .eq('id', suggestion.client_id)
 
       if (updateError) throw updateError
+
+      try {
+        const businessContext = await getRodaAIBusinessContext(context.userId)
+        const result = await detectRoutineConflictsTool.execute(businessContext, {
+          clientName: client?.nombre,
+        })
+        if (result.totalConflicts > 0) {
+          conflictCheck = {
+            hasConflicts: true,
+            clientName: client?.nombre,
+            summary: result.summary,
+          }
+        }
+      } catch (conflictError) {
+        console.error('[RodaAI] Error checking conflicts after accept:', conflictError)
+      }
     }
 
     const { error: statusError } = await supabase
@@ -62,6 +82,6 @@ export async function POST(request: NextRequest) {
 
     if (statusError) throw statusError
 
-    return { success: true }
+    return { success: true, conflictCheck }
   })
 }

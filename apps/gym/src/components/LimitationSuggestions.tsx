@@ -14,6 +14,11 @@ interface Suggestion {
   gym_clients: { nombre: string } | null;
 }
 
+interface ConflictBanner {
+  clientName: string;
+  summary: string;
+}
+
 interface LimitationSuggestionsProps {
   userRole: 'trainer' | 'client';
 }
@@ -22,6 +27,7 @@ export function LimitationSuggestions({ userRole }: LimitationSuggestionsProps) 
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState<string | null>(null);
+  const [conflictBanner, setConflictBanner] = useState<ConflictBanner | null>(null);
 
   useEffect(() => {
     fetch('/api/gym/rodaai/limitation-suggestions')
@@ -41,7 +47,7 @@ export function LimitationSuggestions({ userRole }: LimitationSuggestionsProps) 
     );
   }
 
-  if (suggestions.length === 0) return null;
+  if (suggestions.length === 0 && !conflictBanner) return null;
 
   const handleAction = async (suggestionId: string, action: 'accept' | 'reject') => {
     setResolving(suggestionId);
@@ -52,58 +58,105 @@ export function LimitationSuggestions({ userRole }: LimitationSuggestionsProps) 
         body: JSON.stringify({ suggestionId, action }),
       });
       if (res.ok) {
+        const data = await res.json();
         setSuggestions((prev) => prev.filter((s) => s.id !== suggestionId));
+        if (data.conflictCheck?.hasConflicts) {
+          setConflictBanner({
+            clientName: data.conflictCheck.clientName ?? 'el cliente',
+            summary: data.conflictCheck.summary ?? '',
+          });
+        }
       }
     } finally {
       setResolving(null);
     }
   };
 
+  const handleOpenRodaAI = (clientName: string) => {
+    window.dispatchEvent(
+      new CustomEvent('rodaai:open-with-message', {
+        detail: { message: `Ayúdame a ajustar la rutina de ${clientName} por su nueva limitación` },
+      })
+    );
+    setConflictBanner(null);
+  };
+
   return (
-    <div className="rounded-xl border border-purple-200 bg-white mb-6 overflow-hidden">
-      <div className="px-4 py-3 border-b border-purple-100 flex items-center justify-between bg-purple-50">
-        <span className="text-sm font-semibold text-purple-800 flex items-center gap-2">
-          🧠 Limitaciones sugeridas por IA
-        </span>
-        <span className="text-xs font-medium bg-purple-600 text-white rounded-full px-2 py-0.5">
-          {suggestions.length}
-        </span>
-      </div>
-      <ul className="divide-y divide-gray-100">
-        {suggestions.map((s) => (
-          <li key={s.id} className="px-4 py-4">
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-800 truncate">
-                  {s.gym_clients?.nombre ?? 'Cliente desconocido'}
-                </p>
-                <p className="text-sm text-gray-700 mt-0.5">{s.suggested_text}</p>
-                {s.source_quote && (
-                  <p className="text-xs text-gray-400 italic mt-1 line-clamp-2">
-                    &ldquo;{s.source_quote}&rdquo;
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="flex gap-2 mt-3">
+    <>
+      {suggestions.length > 0 && (
+        <div className="rounded-xl border border-purple-200 bg-white mb-6 overflow-hidden">
+          <div className="px-4 py-3 border-b border-purple-100 flex items-center justify-between bg-purple-50">
+            <span className="text-sm font-semibold text-purple-800 flex items-center gap-2">
+              🧠 Limitaciones sugeridas por IA
+            </span>
+            <span className="text-xs font-medium bg-purple-600 text-white rounded-full px-2 py-0.5">
+              {suggestions.length}
+            </span>
+          </div>
+          <ul className="divide-y divide-gray-100">
+            {suggestions.map((s) => (
+              <li key={s.id} className="px-4 py-4">
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 truncate">
+                      {s.gym_clients?.nombre ?? 'Cliente desconocido'}
+                    </p>
+                    <p className="text-sm text-gray-700 mt-0.5">{s.suggested_text}</p>
+                    {s.source_quote && (
+                      <p className="text-xs text-gray-400 italic mt-1 line-clamp-2">
+                        &ldquo;{s.source_quote}&rdquo;
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => handleAction(s.id, 'accept')}
+                    disabled={resolving === s.id}
+                    className="flex-1 text-xs font-medium py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                  >
+                    {resolving === s.id ? '…' : 'Aceptar'}
+                  </button>
+                  <button
+                    onClick={() => handleAction(s.id, 'reject')}
+                    disabled={resolving === s.id}
+                    className="flex-1 text-xs font-medium py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                  >
+                    {resolving === s.id ? '…' : 'Rechazar'}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {conflictBanner && (
+        <div className="rounded-xl border border-red-200 bg-red-50 mb-6 overflow-hidden">
+          <div className="px-4 py-3 border-b border-red-100 flex items-center justify-between">
+            <span className="text-sm font-semibold text-red-800 flex items-center gap-2">
+              ⚠️ Revisa la rutina de {conflictBanner.clientName}
+            </span>
+          </div>
+          <div className="px-4 py-3">
+            <p className="text-sm text-red-700 mb-3">{conflictBanner.summary}</p>
+            <div className="flex gap-2">
               <button
-                onClick={() => handleAction(s.id, 'accept')}
-                disabled={resolving === s.id}
-                className="flex-1 text-xs font-medium py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                onClick={() => handleOpenRodaAI(conflictBanner.clientName)}
+                className="flex-1 text-xs font-medium py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
               >
-                {resolving === s.id ? '…' : 'Aceptar'}
+                Abrir RodaAI para ajustar
               </button>
               <button
-                onClick={() => handleAction(s.id, 'reject')}
-                disabled={resolving === s.id}
-                className="flex-1 text-xs font-medium py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                onClick={() => setConflictBanner(null)}
+                className="flex-1 text-xs font-medium py-1.5 rounded-lg border border-red-300 text-red-700 hover:bg-red-100 transition-colors"
               >
-                {resolving === s.id ? '…' : 'Rechazar'}
+                Descartar aviso
               </button>
             </div>
-          </li>
-        ))}
-      </ul>
-    </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
