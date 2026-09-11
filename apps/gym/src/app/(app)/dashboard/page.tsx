@@ -1,5 +1,6 @@
 import { ClientList } from '@/components/fisio/ClientList';
 import { AlertCenter } from '@/components/AlertCenter';
+import { LimitationSuggestions } from '@/components/LimitationSuggestions';
 import { createSupabaseClient } from '@/supabase-clients/server';
 import { getRodaAIBusinessContext } from '@/lib/rodaai-business';
 
@@ -28,6 +29,7 @@ export default async function DashboardPage() {
         </p>
       </div>
       <AlertCenter userRole={userRole} />
+      <LimitationSuggestions userRole={userRole} />
       <ClientList />
     </div>
   );
