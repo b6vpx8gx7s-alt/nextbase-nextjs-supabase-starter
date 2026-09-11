@@ -256,6 +256,7 @@ export function RodaAIPanel({ context }: RodaAIPanelProps) {
                     border: '0.5px solid #ccc',
                     background: 'white',
                     cursor: 'pointer',
+                    color: '#111',
                   }}
                 >
                   {s}
@@ -386,6 +387,8 @@ export function RodaAIPanel({ context }: RodaAIPanelProps) {
             borderRadius: 8,
             border: '0.5px solid #ccc',
             outline: 'none',
+            color: '#111',
+            background: 'white',
           }}
         />
         <button
