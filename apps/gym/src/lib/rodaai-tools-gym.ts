@@ -578,6 +578,116 @@ IMPORTANTE: Responde con JSON breve y compacto. Máximo 2 ejercicios en conflict
   },
 };
 
+export const detectLimitationFromSessionsTool: RodaAITool = {
+  name: 'detect_limitation_from_sessions',
+  description: 'Analiza notas recientes de sesiones para detectar menciones de lesiones o limitaciones nuevas y las registra como sugerencias pendientes de aprobación',
+  category: 'gym',
+  inputSchema: {
+    type: 'object',
+    properties: {},
+    required: [],
+  },
+  execute: async (context: RodaAIBusinessContext) => {
+    const supabase = createGymAdminClient()
+
+    const { data: clients } = await supabase
+      .from('gym_clients')
+      .select('id, nombre')
+      .eq('business_id', context.businessId)
+
+    if (!clients || clients.length === 0) {
+      return { success: true, newSuggestions: 0, message: 'No hay clientes registrados' }
+    }
+
+    const clientIds = clients.map((c) => c.id)
+
+    const { data: sessions } = await supabase
+      .from('gym_workout_sessions')
+      .select('id, client_id, notas, trained_at')
+      .in('client_id', clientIds)
+      .not('notas', 'is', null)
+      .order('trained_at', { ascending: false })
+      .limit(30)
+
+    if (!sessions || sessions.length === 0) {
+      return { success: true, newSuggestions: 0, message: 'No hay sesiones con comentarios' }
+    }
+
+    const { data: existingSuggestions } = await supabase
+      .from('rodaai_limitation_suggestions')
+      .select('session_id')
+      .eq('business_id', context.businessId)
+
+    const alreadyProcessedSessionIds = new Set(
+      (existingSuggestions || []).map((s) => s.session_id)
+    )
+
+    let newSuggestions = 0
+
+    for (const session of sessions) {
+      if (alreadyProcessedSessionIds.has(session.id)) continue
+      if (!session.notas || !(session.notas as string).trim()) continue
+
+      const client = clients.find((c) => c.id === session.client_id)
+      if (!client) continue
+
+      const response = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 300,
+        messages: [
+          {
+            role: 'user',
+            content: `Analiza este comentario de una sesión de entrenamiento y determina si menciona una lesión, dolor o limitación física NUEVA (no una que ya se sabía).
+
+Comentario: "${session.notas}"
+
+Responde SOLO en JSON, sin markdown:
+{
+  "hasLimitation": boolean,
+  "suggestedText": "descripción breve tipo 'Tiene lesión en el tobillo'",
+  "sourceQuote": "frase textual del comentario que lo indica"
+}
+
+Si no hay ninguna limitación mencionada, responde {"hasLimitation": false}`,
+          },
+        ],
+      })
+
+      try {
+        const textContent = response.content[0]
+        if (textContent.type === 'text') {
+          const cleaned = textContent.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+          const result = JSON.parse(cleaned)
+
+          if (result.hasLimitation) {
+            const { error } = await supabase.from('rodaai_limitation_suggestions').insert({
+              business_id: context.businessId,
+              client_id: session.client_id,
+              session_id: session.id,
+              suggested_text: result.suggestedText,
+              suggested_type: 'fisica',
+              source_quote: result.sourceQuote,
+              status: 'pending',
+            })
+            if (!error) newSuggestions++
+            else console.error('[RodaAI] Error insertando sugerencia:', error)
+          }
+        }
+      } catch (parseError) {
+        console.error(`[RodaAI] Error parsing Claude response for session ${session.id}:`, parseError)
+      }
+    }
+
+    return {
+      success: true,
+      newSuggestions,
+      summary: newSuggestions > 0
+        ? `${newSuggestions} nueva(s) limitación(es) detectada(s), pendientes de tu revisión`
+        : 'No se detectaron limitaciones nuevas',
+    }
+  },
+}
+
 export const GYM_TOOLS: RodaAITool[] = [
   getClientProfileTool,
   getActiveRoutinesTool,
@@ -586,4 +696,5 @@ export const GYM_TOOLS: RodaAITool[] = [
   getClientAlertsTool,
   analyzeInjuryNotesTool,
   detectRoutineConflictsTool,
+  detectLimitationFromSessionsTool,
 ];
