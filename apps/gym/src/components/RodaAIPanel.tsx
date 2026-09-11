@@ -1,158 +1,414 @@
-'use client';
+'use client'
 
-import { useState, useRef, useEffect } from 'react';
-import { type RodaAIBusinessContext } from '@/lib/rodaai-business';
+import { useState, useRef, useEffect } from 'react'
+import { type RodaAIBusinessContext } from '@/lib/rodaai-business'
 
 interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: string;
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: string
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  toolsUsed?: Array<{ name: string; params: any }>;
+  toolsUsed?: Array<{ name: string; params: any }>
 }
 
 export interface RodaAIPanelProps {
-  context: RodaAIBusinessContext;
+  context: RodaAIBusinessContext
 }
 
+const SUGGESTIONS = [
+  '¿Cuántos clientes tengo?',
+  '¿Hay alertas pendientes?',
+]
+
 export function RodaAIPanel({ context }: RodaAIPanelProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [conversationId, setConversationId] = useState<string | undefined>();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false)
+  const [hasUnread, setHasUnread] = useState(false)
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [conversationId, setConversationId] = useState<string>()
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (isOpen) scrollToBottom()
+  }, [messages, isOpen])
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || loading) return;
+  const sendMessage = async (text: string) => {
+    if (!text.trim() || loading) return
 
     const userMessage: Message = {
       role: 'user',
-      content: input,
+      content: text,
       timestamp: new Date().toISOString(),
-    };
+    }
 
-    setMessages((prev) => [...prev, userMessage]);
-    const inputValue = input;
-    setInput('');
-    setLoading(true);
+    setMessages((prev) => [...prev, userMessage])
+    setInput('')
+    setLoading(true)
 
     try {
       const response = await fetch('/api/gym/rodaai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: inputValue, conversationId }),
-      });
+        body: JSON.stringify({ message: text, conversationId }),
+      })
 
-      if (!response.ok) throw new Error(`Failed: ${response.status}`);
+      if (!response.ok) throw new Error(`Failed: ${response.status}`)
 
-      const data = await response.json();
+      const data = await response.json()
 
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: data.message,
+        timestamp: new Date().toISOString(),
+        toolsUsed: data.toolsUsed,
+      }
+
+      setMessages((prev) => [...prev, assistantMessage])
+      if (data.conversationId) setConversationId(data.conversationId)
+      if (!isOpen) setHasUnread(true)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Error desconocido'
+      console.error('[RodaAI Error]', message)
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: data.message,
+          content: `Error: ${message}`,
           timestamp: new Date().toISOString(),
-          toolsUsed: data.toolsUsed,
         },
-      ]);
-      if (data.conversationId) setConversationId(data.conversationId);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error desconocido';
-      console.error('[RodaAI Error]', message);
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: `Error: ${message}`, timestamp: new Date().toISOString() },
-      ]);
+      ])
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
+
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault()
+    sendMessage(input)
+  }
+
+  const handleOpen = () => {
+    setIsOpen(true)
+    setHasUnread(false)
+  }
+
+  const formatTime = (iso: string) =>
+    new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+
+  if (!isOpen) {
+    return (
+      <button
+        onClick={handleOpen}
+        aria-label="Abrir RodaAI"
+        style={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          width: 56,
+          height: 56,
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #1B8BA8, #3DD9B0)',
+          border: 'none',
+          boxShadow: '0 2px 8px rgba(15,39,48,0.25)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          zIndex: 50,
+        }}
+      >
+        <span style={{ fontSize: 24 }}>✨</span>
+        {hasUnread && (
+          <span
+            style={{
+              position: 'absolute',
+              top: -2,
+              right: -2,
+              width: 14,
+              height: 14,
+              borderRadius: '50%',
+              background: '#E24B4A',
+              border: '2px solid white',
+            }}
+          />
+        )}
+      </button>
+    )
+  }
 
   return (
-    <aside className="w-96 border-l border-gray-200 bg-white flex flex-col">
-      {/* Header */}
-      <div className="border-b border-gray-200 p-4 bg-gradient-to-r from-[#1B8BA8] to-[#0E5A6E]">
-        <h2 className="text-white font-bold text-sm">🤖 RodaAI</h2>
-        <p className="text-xs text-gray-200 mt-1">
-          {context.userRole === 'trainer' ? 'Coach Assistant' : 'Personal Coach'}
-        </p>
+    <aside
+      style={{
+        position: 'fixed',
+        bottom: 24,
+        right: 24,
+        width: 320,
+        height: 480,
+        borderRadius: 12,
+        overflow: 'hidden',
+        border: '0.5px solid #e5e5e5',
+        boxShadow: '0 4px 16px rgba(15,39,48,0.16)',
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'white',
+        zIndex: 50,
+      }}
+    >
+      <div
+        style={{
+          background: 'linear-gradient(135deg, #0F2730 0%, #143842 100%)',
+          padding: '14px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #1B8BA8, #3DD9B0)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ fontSize: 16 }}>✨</span>
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: 'white' }}>RodaAI</div>
+          <div style={{ fontSize: 12, color: '#9fd9e8', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3DD9B0', display: 'inline-block' }} />
+            {context.userRole === 'trainer' ? 'Coach assistant' : 'Personal coach'}
+          </div>
+        </div>
+        <button
+          onClick={() => setIsOpen(false)}
+          aria-label="Minimizar"
+          style={{
+            width: 22,
+            height: 22,
+            padding: 0,
+            background: 'rgba(255,255,255,0.1)',
+            border: 'none',
+            borderRadius: 6,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            color: 'white',
+            fontSize: 14,
+          }}
+        >
+          −
+        </button>
       </div>
 
-      {/* Messages Container */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div
+        style={{
+          flex: 1,
+          padding: '14px 12px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+          background: '#fafafa',
+          overflowY: 'auto',
+        }}
+      >
         {messages.length === 0 && (
-          <div className="text-center text-gray-400 text-sm py-8">
-            <p>Hola 👋</p>
-            <p className="mt-2 text-xs">
+          <div style={{ textAlign: 'center', padding: '20px 8px 4px' }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #1B8BA8, #3DD9B0)',
+                margin: '0 auto 10px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <span style={{ fontSize: 20 }}>✨</span>
+            </div>
+            <div style={{ fontSize: 13, color: '#666', marginBottom: 12 }}>
               {context.userRole === 'trainer'
-                ? 'Pregúntame sobre tus clientes, rutinas, o analytics'
+                ? 'Pregúntame sobre tus clientes, rutinas o alertas'
                 : 'Pregúntame sobre tu entrenamiento y metas'}
-            </p>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => sendMessage(s)}
+                  style={{
+                    fontSize: 12,
+                    padding: '6px 12px',
+                    borderRadius: 999,
+                    border: '0.5px solid #ccc',
+                    background: 'white',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
         {messages.map((msg, i) => (
-          <div key={i} className={`flex gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-            <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold bg-gray-200">
-              {msg.role === 'user' ? '👤' : '🤖'}
-            </div>
+          <div
+            key={i}
+            style={{
+              alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+              maxWidth: '85%',
+              display: 'flex',
+              gap: 8,
+              flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
+            }}
+          >
+            {msg.role === 'assistant' && (
+              <div
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #1B8BA8, #3DD9B0)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  marginTop: 2,
+                }}
+              >
+                <span style={{ fontSize: 12 }}>✨</span>
+              </div>
+            )}
             <div
-              className={`max-w-xs text-sm rounded-lg p-3 ${
-                msg.role === 'user' ? 'bg-[#1B8BA8] text-white' : 'bg-gray-100 text-gray-900'
-              }`}
+              style={{
+                background: msg.role === 'user' ? '#1B8BA8' : 'white',
+                color: msg.role === 'user' ? 'white' : '#111',
+                padding: '8px 12px',
+                borderRadius: msg.role === 'user' ? '16px 16px 3px 16px' : '3px 16px 16px 16px',
+                fontSize: 13,
+                lineHeight: 1.6,
+                boxShadow: msg.role === 'user' ? '0 1px 2px rgba(0,0,0,0.08)' : '0 1px 2px rgba(0,0,0,0.04)',
+              }}
             >
-              <p>{msg.content}</p>
+              {msg.content}
               {msg.toolsUsed && msg.toolsUsed.length > 0 && (
-                <p className="text-xs text-gray-600 mt-2 border-t pt-2">
-                  🔧 Usé: {msg.toolsUsed.map((t) => t.name).join(', ')}
-                </p>
+                <div
+                  style={{
+                    marginTop: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    borderTop: '0.5px solid #eee',
+                    paddingTop: 6,
+                  }}
+                >
+                  <span style={{ fontSize: 11, color: '#999' }}>
+                    🔧 {msg.toolsUsed.map((t) => t.name).join(', ')}
+                  </span>
+                  <span style={{ fontSize: 11, color: '#999' }}>{formatTime(msg.timestamp)}</span>
+                </div>
               )}
             </div>
           </div>
         ))}
 
         {loading && (
-          <div className="flex gap-2">
-            <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs">
-              🤖
+          <div style={{ alignSelf: 'flex-start', display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #1B8BA8, #3DD9B0)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <span style={{ fontSize: 12 }}>✨</span>
             </div>
-            <div className="bg-gray-100 rounded-lg p-3 text-sm text-gray-500">Pensando...</div>
+            <div
+              style={{
+                background: 'white',
+                padding: '10px 12px',
+                borderRadius: '3px 16px 16px 16px',
+                display: 'flex',
+                gap: 4,
+                boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+              }}
+            >
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#999', display: 'inline-block' }} />
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#999', display: 'inline-block' }} />
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#999', display: 'inline-block' }} />
+            </div>
           </div>
         )}
 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Form */}
-      <form onSubmit={handleSendMessage} className="border-t border-gray-200 p-4 bg-gray-50">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Escribe aquí..."
-            disabled={loading}
-            className="flex-1 px-3 py-2 rounded border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B8BA8] disabled:bg-gray-100"
-          />
-          <button
-            type="submit"
-            disabled={loading || !input.trim()}
-            className="px-3 py-2 bg-[#1B8BA8] text-white rounded text-sm font-medium hover:bg-[#0E5A6E] disabled:bg-gray-300 transition-colors"
-          >
-            {loading ? '...' : 'Enviar'}
-          </button>
-        </div>
+      <form
+        onSubmit={handleSendMessage}
+        style={{
+          padding: '10px 12px',
+          background: 'white',
+          borderTop: '0.5px solid #eee',
+          display: 'flex',
+          gap: 8,
+          flexShrink: 0,
+        }}
+      >
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Pregúntale a RodaAI..."
+          disabled={loading}
+          style={{
+            flex: 1,
+            fontSize: 13,
+            padding: '8px 10px',
+            borderRadius: 8,
+            border: '0.5px solid #ccc',
+            outline: 'none',
+          }}
+        />
+        <button
+          type="submit"
+          disabled={loading || !input.trim()}
+          aria-label="Enviar"
+          style={{
+            width: 36,
+            height: 36,
+            padding: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: input.trim() ? '#1B8BA8' : '#e0e0e0',
+            border: 'none',
+            borderRadius: 12,
+            cursor: input.trim() ? 'pointer' : 'default',
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ fontSize: 16, color: input.trim() ? 'white' : '#999' }}>➤</span>
+        </button>
       </form>
     </aside>
-  );
+  )
 }

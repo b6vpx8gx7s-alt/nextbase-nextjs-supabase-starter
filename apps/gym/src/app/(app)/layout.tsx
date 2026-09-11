@@ -64,12 +64,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen">
-      <AppSidebar />
-      <main className="flex-1 overflow-auto">
-        <AuthGuard>{children}</AuthGuard>
-      </main>
+    <>
+      <div className="flex h-screen">
+        <AppSidebar />
+        <main className="flex-1 overflow-auto">
+          <AuthGuard>{children}</AuthGuard>
+        </main>
+      </div>
       {rodaaiContext && <RodaAIPanel context={rodaaiContext} />}
-    </div>
+    </>
   );
 }
