@@ -432,19 +432,31 @@ export const detectRoutineConflictsTool: RodaAITool = {
   category: 'gym',
   inputSchema: {
     type: 'object',
-    properties: {},
+    properties: {
+      clientName: {
+        type: 'string',
+        description: 'Nombre del cliente a analizar (opcional, si se omite analiza todos)',
+      },
+    },
     required: [],
   },
-  execute: async (context: RodaAIBusinessContext, _params: RodaAIToolInput) => {
+  execute: async (context: RodaAIBusinessContext, params: RodaAIToolInput) => {
     const supabase = createGymAdminClient();
+    const clientNameFilter = params.clientName as string | undefined;
 
-    const { data: clients } = await supabase
+    let clientsQuery = supabase
       .from('gym_clients')
       .select(
         `id, nombre, lesion_actual, problema_cardiovascular, zona_a_mejorar,
-         gym_routines ( id, semana, routine_data, estado )`
+         gym_routines ( id, semana, routine_data, estado, generated_at )`
       )
       .eq('business_id', context.businessId);
+
+    if (clientNameFilter?.trim()) {
+      clientsQuery = clientsQuery.ilike('nombre', `%${clientNameFilter}%`);
+    }
+
+    const { data: clients } = await clientsQuery;
 
     if (!clients || clients.length === 0) {
       return { success: true, conflicts: [], totalConflicts: 0, message: 'No hay clientes registrados' };
@@ -468,9 +480,12 @@ export const detectRoutineConflictsTool: RodaAITool = {
         .join(', ');
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const routines = (client.gym_routines as any[]) ?? [];
-      for (const routine of routines) {
-        if (routine.estado !== 'activa' && routine.estado !== 'generada') continue;
+      const allRoutines = (client.gym_routines as any[]) ?? [];
+      const routine = allRoutines
+        .filter((r) => r.estado === 'activa' || r.estado === 'generada')
+        .sort((a, b) => new Date(b.generated_at).getTime() - new Date(a.generated_at).getTime())[0];
+
+      if (routine) {
 
         let exerciseNames: string[] = [];
         let exerciseNotes: string[] = [];
