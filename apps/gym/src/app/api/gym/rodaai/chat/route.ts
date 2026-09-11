@@ -63,10 +63,14 @@ export async function POST(request: NextRequest) {
         messages,
       });
 
+      const toolResults: Anthropic.Messages.ToolResultBlockParam[] = [];
+      let hasToolUse = false;
+
       for (const block of response.content) {
         if (block.type === 'text') {
           fullResponse += block.text;
         } else if (block.type === 'tool_use') {
+          hasToolUse = true;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const toolParams = block.input as Record<string, any>;
           const tool = GYM_TOOLS.find((t) => t.name === block.name);
@@ -95,19 +99,19 @@ export async function POST(request: NextRequest) {
             console.error(`[RodaAI] Tool ${block.name} error:`, toolResultContent);
           }
 
-          messages.push({ role: 'assistant', content: response.content });
-          messages.push({
-            role: 'user',
-            content: [
-              {
-                type: 'tool_result',
-                tool_use_id: block.id,
-                content: toolResultContent,
-                ...(isError ? { is_error: true } : {}),
-              },
-            ],
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: toolResultContent,
+            ...(isError ? { is_error: true } : {}),
           });
         }
+      }
+
+      // Un solo push del mensaje assistant + todos sus tool_results juntos
+      if (hasToolUse) {
+        messages.push({ role: 'assistant', content: response.content });
+        messages.push({ role: 'user', content: toolResults });
       }
 
       if (response.stop_reason === 'end_turn') break;
