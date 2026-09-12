@@ -826,7 +826,26 @@ export const replaceRoutineExerciseTool: RodaAITool = {
         .map((r) => r.exercise_id as string)
     )
 
-    const safeCandidates = candidates.filter((c) => !forbiddenIds.has(c.id as string))
+    // Solo considerar "evaluado" un ejercicio que tenga AL MENOS una fila en
+    // exercise_restrictions para alguna zona relevante del cliente (aunque sea
+    // 'caution'). Si el cliente tiene limitaciones activas, un candidato sin
+    // ninguna evaluación registrada no debe asumirse como seguro.
+    const evaluatedIds = new Set((restrictions || []).map((r) => r.exercise_id as string))
+
+    const safeCandidates = candidates.filter((c) => {
+      if (forbiddenIds.has(c.id as string)) return false
+      if (canonicalZones.size > 0 && !evaluatedIds.has(c.id as string)) return false
+      return true
+    })
+
+    // Si el filtro estricto no deja ningún candidato, es preferible reportarlo
+    // como "sin alternativa verificada" a elegir uno al azar sin evaluar.
+    if (safeCandidates.length === 0 && canonicalZones.size > 0) {
+      return {
+        success: false,
+        error: `No hay ejercicios evaluados explícitamente como seguros para las limitaciones de ${client.nombre as string} en el catálogo (patrón: ${originalExercise.patron as string}, grupo muscular: ${originalExercise.grupo_muscular as string}). Ningún candidato disponible tiene una restricción registrada que confirme si es seguro o no — se requiere revisión manual del entrenador.`,
+      }
+    }
 
     if (safeCandidates.length === 0) {
       return {
