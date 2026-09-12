@@ -803,6 +803,7 @@ export const replaceRoutineExerciseTool: RodaAITool = {
       .select('id, nombre, patron, grupo_muscular, equipo')
       .eq('patron', originalExercise.patron as string)
       .eq('grupo_muscular', originalExercise.grupo_muscular as string)
+      .in('context', ['gym', 'ambos'])
       .neq('id', foundExercise.exercise_id as string)
 
     if (!candidates || candidates.length === 0) {
