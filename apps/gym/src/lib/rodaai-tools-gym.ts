@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { createGymAdminClient } from '@/app/api/gym/_helpers';
+import { parseReps } from '@/lib/rutina/safety';
 import { type RodaAIBusinessContext } from './rodaai-business';
 import { type RodaAITool, type RodaAIToolInput } from './rodaai-tools';
 
@@ -688,6 +689,219 @@ Si no hay ninguna limitación mencionada, responde {"hasLimitation": false}`,
   },
 }
 
+export const replaceRoutineExerciseTool: RodaAITool = {
+  name: 'replace_routine_exercise',
+  description: 'Reemplaza un ejercicio específico en la rutina activa de un cliente por una alternativa segura del catálogo, considerando sus limitaciones registradas',
+  category: 'gym',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      clientName: {
+        type: 'string',
+        description: 'Nombre del cliente',
+      },
+      exerciseName: {
+        type: 'string',
+        description: 'Nombre exacto del ejercicio a reemplazar, tal como aparece en su rutina',
+      },
+    },
+    required: ['clientName', 'exerciseName'],
+  },
+  execute: async (context: RodaAIBusinessContext, params: RodaAIToolInput) => {
+    const supabase = createGymAdminClient()
+    const clientName = params.clientName as string
+    const exerciseName = params.exerciseName as string
+
+    // 1. Buscar cliente
+    const { data: client } = await supabase
+      .from('gym_clients')
+      .select('id, nombre, lesion_actual, problema_cardiovascular')
+      .eq('business_id', context.businessId)
+      .ilike('nombre', `%${clientName}%`)
+      .maybeSingle()
+
+    if (!client) {
+      return { success: false, error: `No se encontró un cliente llamado "${clientName}"` }
+    }
+
+    // 2. Resolver limitaciones a zonas canónicas
+    const limitationsText = [client.lesion_actual as string | null, client.problema_cardiovascular as string | null]
+      .filter(Boolean)
+      .join('. ')
+
+    const { data: allAliases } = await supabase
+      .from('zone_aliases')
+      .select('zona_usuario, zona_canonica')
+
+    const canonicalZones = new Set<string>()
+    if (allAliases && limitationsText) {
+      for (const alias of allAliases) {
+        if (limitationsText.toLowerCase().includes((alias.zona_usuario as string).toLowerCase())) {
+          canonicalZones.add(alias.zona_canonica as string)
+        }
+      }
+    }
+
+    // 3. Buscar rutina más reciente (activa o generada)
+    const { data: routines } = await supabase
+      .from('gym_routines')
+      .select('id, routine_data')
+      .eq('client_id', client.id as string)
+      .in('estado', ['activa', 'generada'])
+      .order('generated_at', { ascending: false })
+      .limit(1)
+
+    const routine = routines?.[0]
+    if (!routine) {
+      return { success: false, error: `${client.nombre as string} no tiene una rutina activa para modificar` }
+    }
+
+    const routineData = routine.routine_data as {
+      dias: Array<{ nombre: string; dia_index: number; ejercicios: Array<Record<string, unknown>> }>
+      notas_generales: string | null
+    }
+
+    // 4. Localizar el ejercicio dentro de los días
+    let foundExercise: Record<string, unknown> | null = null
+    let foundDiaIndex = -1
+    let foundEjercicioIndex = -1
+
+    for (let d = 0; d < routineData.dias.length; d++) {
+      const ejercicios = routineData.dias[d].ejercicios
+      const idx = ejercicios.findIndex(
+        (e) => (e.nombre as string).toLowerCase() === exerciseName.toLowerCase()
+      )
+      if (idx !== -1) {
+        foundExercise = ejercicios[idx]
+        foundDiaIndex = d
+        foundEjercicioIndex = idx
+        break
+      }
+    }
+
+    if (!foundExercise) {
+      return {
+        success: false,
+        error: `No se encontró el ejercicio "${exerciseName}" en la rutina de ${client.nombre as string}`,
+      }
+    }
+
+    // 5. Obtener patron y grupo_muscular del ejercicio original
+    const { data: originalExercise } = await supabase
+      .from('exercises')
+      .select('patron, grupo_muscular, equipo')
+      .eq('id', foundExercise.exercise_id as string)
+      .maybeSingle()
+
+    if (!originalExercise) {
+      return { success: false, error: 'No se pudo obtener información del ejercicio original en el catálogo' }
+    }
+
+    // 6. Buscar candidatos con mismo patron + grupo_muscular
+    const { data: candidates } = await supabase
+      .from('exercises')
+      .select('id, nombre, patron, grupo_muscular, equipo')
+      .eq('patron', originalExercise.patron as string)
+      .eq('grupo_muscular', originalExercise.grupo_muscular as string)
+      .neq('id', foundExercise.exercise_id as string)
+
+    if (!candidates || candidates.length === 0) {
+      return {
+        success: false,
+        error: `No hay alternativas disponibles en el catálogo para "${exerciseName}" (mismo patrón y grupo muscular)`,
+      }
+    }
+
+    // 7. Filtrar por restricciones forbidden en las zonas del cliente
+    const candidateIds = candidates.map((c) => c.id as string)
+    const { data: restrictions } = await supabase
+      .from('exercise_restrictions')
+      .select('exercise_id, zona_corporal, severidad')
+      .in('exercise_id', candidateIds)
+
+    const forbiddenIds = new Set(
+      (restrictions || [])
+        .filter((r) => r.severidad === 'forbidden' && canonicalZones.has(r.zona_corporal as string))
+        .map((r) => r.exercise_id as string)
+    )
+
+    const safeCandidates = candidates.filter((c) => !forbiddenIds.has(c.id as string))
+
+    if (safeCandidates.length === 0) {
+      return {
+        success: false,
+        error: `Todas las alternativas disponibles para "${exerciseName}" están contraindicadas para las limitaciones de ${client.nombre as string}. Se requiere revisión manual.`,
+      }
+    }
+
+    // 8. Preferir mismo equipo
+    const sameEquipment = safeCandidates.filter((c) => c.equipo === originalExercise.equipo)
+    const chosen = (sameEquipment.length > 0 ? sameEquipment : safeCandidates)[0]
+
+    // 9. Reemplazar en memoria
+    const updatedDias = routineData.dias.map((dia, dIdx) => {
+      if (dIdx !== foundDiaIndex) return dia
+      return {
+        ...dia,
+        ejercicios: dia.ejercicios.map((ej, eIdx) => {
+          if (eIdx !== foundEjercicioIndex) return ej
+          return {
+            exercise_id: chosen.id as string,
+            nombre: chosen.nombre as string,
+            series: ej.series,
+            repeticiones: ej.repeticiones,
+            descanso_seg: ej.descanso_seg,
+            gif_url: null,
+            peso_objetivo_kg: null,
+            nota: `Reemplazado automáticamente por RodaAI: ${exerciseName} → ${chosen.nombre as string} (limitación registrada)`,
+          }
+        }),
+      }
+    })
+
+    // 10. Persistir: UPDATE routine_data + DELETE/INSERT gym_routine_exercises
+    const { error: updateError } = await supabase
+      .from('gym_routines')
+      .update({ routine_data: { dias: updatedDias, notas_generales: routineData.notas_generales } })
+      .eq('id', routine.id as string)
+
+    if (updateError) {
+      return { success: false, error: `Error al guardar la rutina: ${updateError.message}` }
+    }
+
+    await supabase.from('gym_routine_exercises').delete().eq('routine_id', routine.id as string)
+
+    const flatExercises = updatedDias.flatMap((dia) =>
+      dia.ejercicios.map((ej, orden) => ({
+        routine_id: routine.id as string,
+        exercise_id: ej.exercise_id as string,
+        dia: Math.min(Math.max(dia.dia_index + 1, 1), 7),
+        series: ej.series as number,
+        reps_o_segundos: parseReps(ej.repeticiones as string),
+        tempo: null,
+        orden,
+        notas_adaptacion: (ej.nota as string | null) ?? null,
+      }))
+    )
+
+    const { error: insertError } = await supabase.from('gym_routine_exercises').insert(flatExercises)
+
+    if (insertError) {
+      return { success: false, error: `Ejercicio reemplazado en routine_data pero falló la tabla plana: ${insertError.message}` }
+    }
+
+    return {
+      success: true,
+      replaced: {
+        from: exerciseName,
+        to: chosen.nombre as string,
+        day: routineData.dias[foundDiaIndex].nombre,
+      },
+      message: `Se reemplazó "${exerciseName}" por "${chosen.nombre as string}" en ${routineData.dias[foundDiaIndex].nombre}, considerando las limitaciones de ${client.nombre as string}.`,
+    }
+  },
+}
+
 export const GYM_TOOLS: RodaAITool[] = [
   getClientProfileTool,
   getActiveRoutinesTool,
@@ -697,4 +911,5 @@ export const GYM_TOOLS: RodaAITool[] = [
   analyzeInjuryNotesTool,
   detectRoutineConflictsTool,
   detectLimitationFromSessionsTool,
+  replaceRoutineExerciseTool,
 ];
