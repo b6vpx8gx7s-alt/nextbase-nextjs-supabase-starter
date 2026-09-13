@@ -922,6 +922,127 @@ export const replaceRoutineExerciseTool: RodaAITool = {
   },
 }
 
+export const suggestExerciseRestrictionsTool: RodaAITool = {
+  name: 'suggest_exercise_restrictions',
+  description: 'Analiza un lote de ejercicios del catálogo de gym y sugiere restricciones corporales (forbidden/caution) para revisión y aprobación posterior',
+  category: 'gym',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      limit: {
+        type: 'number',
+        description: 'Cantidad de ejercicios a analizar en este lote (default 25)',
+      },
+    },
+    required: [],
+  },
+  execute: async (context: RodaAIBusinessContext, params: RodaAIToolInput) => {
+    const supabase = createGymAdminClient()
+    const batchLimit = (params.limit as number) || 25
+
+    const { data: alreadySuggested } = await supabase
+      .from('exercise_restriction_suggestions')
+      .select('exercise_id')
+
+    const alreadyDoneIds = new Set((alreadySuggested || []).map((s) => s.exercise_id as string))
+
+    const { data: exercisesBatch } = await supabase
+      .from('exercises')
+      .select('id, nombre, patron, grupo_muscular, equipo, descripcion_breve')
+      .in('context', ['gym', 'ambos'])
+      .limit(batchLimit * 3)
+
+    if (!exercisesBatch || exercisesBatch.length === 0) {
+      return { success: true, processed: 0, message: 'No hay ejercicios en el catálogo' }
+    }
+
+    const pending = exercisesBatch.filter((e) => !alreadyDoneIds.has(e.id as string)).slice(0, batchLimit)
+
+    if (pending.length === 0) {
+      return { success: true, processed: 0, message: 'Todos los ejercicios disponibles ya tienen sugerencias generadas' }
+    }
+
+    const ZONAS = ['hombro', 'rodilla', 'columna_lumbar', 'columna_cervical', 'codo', 'muneca', 'cadera', 'tobillo']
+
+    let totalSuggestions = 0
+
+    for (const ex of pending) {
+      const response = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 500,
+        messages: [
+          {
+            role: 'user',
+            content: `Eres un fisioterapeuta evaluando riesgo de ejercicios de gimnasio.
+
+Ejercicio: ${ex.nombre as string}
+Patrón de movimiento: ${ex.patron as string}
+Grupo muscular: ${ex.grupo_muscular as string}
+Equipo: ${ex.equipo as string}
+Descripción del movimiento: ${ex.descripcion_breve as string}
+
+Zonas corporales posibles: ${ZONAS.join(', ')}
+
+Basándote en el movimiento REAL descrito (no solo el patrón/grupo muscular, que pueden estar mal clasificados), identifica si este ejercicio representa riesgo para alguna de esas zonas si la persona tiene una lesión o limitación activa ahí.
+
+Sé conservador pero realista: la mayoría de ejercicios NO tienen riesgo para la mayoría de zonas. Solo marca una zona si el movimiento genuinamente la compromete.
+
+Responde SOLO JSON, sin markdown:
+{
+  "restrictions": [
+    { "zona": "rodilla", "severidad": "caution", "motivo": "breve explicación" }
+  ]
+}
+
+Si no hay ningún riesgo relevante, responde { "restrictions": [] }`,
+          },
+        ],
+      })
+
+      try {
+        const textContent = response.content[0]
+        if (textContent.type === 'text') {
+          const cleaned = textContent.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+          const result = JSON.parse(cleaned) as { restrictions?: Array<{ zona: string; severidad: string; motivo: string }> }
+
+          for (const r of result.restrictions ?? []) {
+            const { error } = await supabase.from('exercise_restriction_suggestions').insert({
+              exercise_id: ex.id as string,
+              exercise_nombre: ex.nombre as string,
+              zona_corporal: r.zona,
+              severidad: r.severidad,
+              motivo: r.motivo,
+              status: 'pending',
+            })
+            if (!error) totalSuggestions++
+            else console.error('[RodaAI] Error insertando sugerencia de restricción:', error)
+          }
+
+          if ((result.restrictions ?? []).length === 0) {
+            await supabase.from('exercise_restriction_suggestions').insert({
+              exercise_id: ex.id as string,
+              exercise_nombre: ex.nombre as string,
+              zona_corporal: 'ninguna',
+              severidad: 'caution',
+              motivo: 'Sin riesgo identificado — marcador de procesado',
+              status: 'no_risk',
+            })
+          }
+        }
+      } catch (parseError) {
+        console.error(`[RodaAI] Error parsing restriction suggestion for ${ex.nombre as string}:`, parseError)
+      }
+    }
+
+    return {
+      success: true,
+      processed: pending.length,
+      totalSuggestions,
+      message: `Procesados ${pending.length} ejercicios, ${totalSuggestions} restricciones sugeridas`,
+    }
+  },
+}
+
 export const GYM_TOOLS: RodaAITool[] = [
   getClientProfileTool,
   getActiveRoutinesTool,
@@ -932,4 +1053,5 @@ export const GYM_TOOLS: RodaAITool[] = [
   detectRoutineConflictsTool,
   detectLimitationFromSessionsTool,
   replaceRoutineExerciseTool,
+  suggestExerciseRestrictionsTool,
 ];
