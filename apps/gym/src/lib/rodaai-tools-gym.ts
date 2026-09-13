@@ -953,7 +953,7 @@ export const suggestExerciseRestrictionsTool: RodaAITool = {
         .from('exercises')
         .select('id, nombre, patron, grupo_muscular, equipo, descripcion_breve')
         .in('context', ['gym', 'ambos'])
-        .order('nombre')
+        .order('id')
         .limit(batchLimit)
       pending = (data ?? []) as ExerciseRow[]
     } else {
