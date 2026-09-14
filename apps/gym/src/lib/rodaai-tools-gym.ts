@@ -1001,6 +1001,17 @@ ${grupo.map((e, idx) => `${idx + 1}. ${e.nombre} (patrón: ${e.patron}, grupo mu
 
 Zonas corporales posibles: ${ZONAS.join(', ')}
 
+EJEMPLOS DE CALIBRACIÓN REAL (de un catálogo ya validado clínicamente):
+- "Press de banca" → hombro: forbidden (carga máxima en posición de riesgo para el manguito rotador)
+- "Peso muerto convencional" → columna_lumbar: forbidden (flexión de columna bajo carga máxima)
+- "Sentadilla búlgara" → rodilla: forbidden, cadera: forbidden (carga unilateral alta en rango profundo)
+- "Goblet squat" → rodilla: forbidden (aunque es una sentadilla "suave", sigue cargando axialmente la rodilla en flexión profunda)
+- "Estocada estática" → rodilla: forbidden (carga excéntrica alta en rodilla flexionada)
+- "Face pull con banda" → hombro: caution, codo: caution (movimiento de baja carga, riesgo menor, no forbidden)
+- "Gato-camello" → columna_cervical: caution (movilidad suave, riesgo mínimo, nunca forbidden)
+
+Usa 'forbidden' quirúrgicamente cuando el ejercicio tenga CARGA AXIAL O DE PESO CORPORAL SIGNIFICATIVA directamente sobre la zona en su rango más comprometido (ej: cualquier sentadilla o press pesado). Usa 'caution' para movimientos de menor carga o riesgo indirecto. No tengas miedo de usar 'forbidden' cuando el ejercicio genuinamente lo amerite — subestimar el riesgo (como marcar 'caution' a algo que debería ser 'forbidden') es tan malo como sobre-marcar.
+
 CRITERIO ESTRICTO — usa la "prueba de la pregunta clínica": ¿Un fisioterapeuta real, mirando este ejercicio, lo mencionaría ESPONTÁNEAMENTE como algo a evitar o modificar para alguien con esa lesión, SIN que se lo sugieran? Si dudas, NO lo marques.
 
 Para cada zona que sí marques, completa mentalmente: "Si la persona hace este ejercicio con esa lesión, es probable que ___". Si tu respuesta es una molestia teórica leve, NO califica. Si es una agravación reconocible de la lesión, SÍ califica.
