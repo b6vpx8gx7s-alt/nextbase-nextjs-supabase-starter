@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ExerciseApprovalList } from './ExerciseApprovalList';
 import { ExerciseCatalogList } from './ExerciseCatalogList';
 import { ExerciseUnpublishedList } from './ExerciseUnpublishedList';
+import { ExerciseRestrictionApprovalList } from './ExerciseRestrictionApprovalList';
 
 type PendingExercise = {
   id: string;
@@ -13,9 +14,24 @@ type PendingExercise = {
   business_name: string | null;
 };
 
-type Tab = 'pending' | 'catalog' | 'unpublished';
+type RestrictionSuggestion = {
+  id: string;
+  exercise_id: string;
+  exercise_nombre: string;
+  zona_corporal: string;
+  severidad: 'forbidden' | 'caution';
+  motivo: string | null;
+};
 
-export function AdminExerciseTabs({ initialPending }: { initialPending: PendingExercise[] }) {
+type Tab = 'pending' | 'catalog' | 'unpublished' | 'restrictions';
+
+export function AdminExerciseTabs({
+  initialPending,
+  initialRestrictions,
+}: {
+  initialPending: PendingExercise[];
+  initialRestrictions: RestrictionSuggestion[];
+}) {
   const [activeTab, setActiveTab] = useState<Tab>('pending');
 
   const tabClass = (tab: Tab) =>
@@ -42,11 +58,22 @@ export function AdminExerciseTabs({ initialPending }: { initialPending: PendingE
         <button onClick={() => setActiveTab('unpublished')} className={tabClass('unpublished')}>
           Despublicados
         </button>
+        <button onClick={() => setActiveTab('restrictions')} className={tabClass('restrictions')}>
+          Restricciones sugeridas
+          {initialRestrictions.length > 0 && (
+            <span className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+              {initialRestrictions.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {activeTab === 'pending' && <ExerciseApprovalList initialExercises={initialPending} />}
       {activeTab === 'catalog' && <ExerciseCatalogList />}
       {activeTab === 'unpublished' && <ExerciseUnpublishedList />}
+      {activeTab === 'restrictions' && (
+        <ExerciseRestrictionApprovalList initialPending={initialRestrictions} />
+      )}
     </div>
   );
 }
