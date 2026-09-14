@@ -1,9 +1,6 @@
 import { type RodaAIBusinessContext } from './rodaai-business';
-import { getToolsForCategory } from './rodaai-tools';
 
 export function buildRodaAISystemPrompt(context: RodaAIBusinessContext): string {
-  const tools = getToolsForCategory(context.category);
-  const toolNames = tools.map((t) => t.name).join(', ');
   const roleInstructions = getRoleInstructions(context.userRole, context.category);
 
   return `You are RodaAI, a specialized fitness coaching assistant for gym professionals in Colombia.
@@ -12,8 +9,6 @@ export function buildRodaAISystemPrompt(context: RodaAIBusinessContext): string 
 - Role: ${context.userRole}
 - Business: ${context.businessId}
 ${context.userName ? `- Your Name: ${context.userName}` : ''}
-
-**Available Tools:** ${toolNames || 'None available in current phase'}
 
 **Your Instructions:**
 ${roleInstructions}
