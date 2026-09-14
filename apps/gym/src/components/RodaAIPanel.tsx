@@ -28,6 +28,9 @@ export function RodaAIPanel({ context }: RodaAIPanelProps) {
   const [loading, setLoading] = useState(false)
   const [conversationId, setConversationId] = useState<string>()
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [isRecording, setIsRecording] = useState(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -97,6 +100,47 @@ export function RodaAIPanel({ context }: RodaAIPanelProps) {
     window.addEventListener('rodaai:open-with-message', handler)
     return () => window.removeEventListener('rodaai:open-with-message', handler)
   }, [sendMessage])
+
+  const handleStartRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream)
+      audioChunksRef.current = []
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data)
+      }
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop())
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        const fd = new FormData()
+        fd.append('audio', blob, 'recording.webm')
+
+        try {
+          const res = await fetch('/api/gym/rodaai/transcribe', { method: 'POST', body: fd })
+          if (res.ok) {
+            const data = await res.json()
+            if (data.text) setInput(data.text)
+          }
+        } catch (err) {
+          console.error('[RodaAI] Transcription error:', err)
+        }
+
+        setIsRecording(false)
+      }
+
+      mediaRecorderRef.current = recorder
+      recorder.start()
+      setIsRecording(true)
+    } catch (err) {
+      console.error('[RodaAI] Microphone error:', err)
+    }
+  }
+
+  const handleStopRecording = () => {
+    mediaRecorderRef.current?.stop()
+  }
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault()
@@ -385,18 +429,39 @@ export function RodaAIPanel({ context }: RodaAIPanelProps) {
           flexShrink: 0,
         }}
       >
+        <button
+          type="button"
+          onClick={isRecording ? handleStopRecording : handleStartRecording}
+          aria-label={isRecording ? 'Detener grabación' : 'Grabar audio'}
+          disabled={loading}
+          style={{
+            width: 36,
+            height: 36,
+            padding: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: isRecording ? '#E24B4A' : '#f0f0f0',
+            border: 'none',
+            borderRadius: 12,
+            cursor: 'pointer',
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ fontSize: 16 }}>{isRecording ? '⏹' : '🎤'}</span>
+        </button>
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Pregúntale a RodaAI..."
-          disabled={loading}
+          placeholder={isRecording ? 'Grabando...' : 'Pregúntale a RodaAI...'}
+          disabled={loading || isRecording}
           style={{
             flex: 1,
             fontSize: 13,
             padding: '8px 10px',
             borderRadius: 8,
-            border: '0.5px solid #ccc',
+            border: `0.5px solid ${isRecording ? '#E24B4A' : '#ccc'}`,
             outline: 'none',
             color: '#111',
             background: 'white',
@@ -404,7 +469,7 @@ export function RodaAIPanel({ context }: RodaAIPanelProps) {
         />
         <button
           type="submit"
-          disabled={loading || !input.trim()}
+          disabled={loading || !input.trim() || isRecording}
           aria-label="Enviar"
           style={{
             width: 36,
@@ -413,14 +478,14 @@ export function RodaAIPanel({ context }: RodaAIPanelProps) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: input.trim() ? '#1B8BA8' : '#e0e0e0',
+            background: input.trim() && !isRecording ? '#1B8BA8' : '#e0e0e0',
             border: 'none',
             borderRadius: 12,
-            cursor: input.trim() ? 'pointer' : 'default',
+            cursor: input.trim() && !isRecording ? 'pointer' : 'default',
             flexShrink: 0,
           }}
         >
-          <span style={{ fontSize: 16, color: input.trim() ? 'white' : '#999' }}>➤</span>
+          <span style={{ fontSize: 16, color: input.trim() && !isRecording ? 'white' : '#999' }}>➤</span>
         </button>
       </form>
     </aside>
