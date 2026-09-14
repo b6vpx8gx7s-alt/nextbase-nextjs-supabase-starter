@@ -795,6 +795,25 @@ export const suggestExerciseReplacementTool: RodaAITool = {
       return { success: false, error: 'No se pudo obtener información del ejercicio original en el catálogo' }
     }
 
+    // Verificar que el ejercicio ORIGINAL realmente representa un riesgo
+    // para las zonas del cliente, antes de sugerir cualquier reemplazo
+    const { data: originalRestrictions } = await supabase
+      .from('exercise_restrictions')
+      .select('zona_corporal, severidad')
+      .eq('exercise_id', foundExercise.exercise_id as string)
+
+    const originalRisksClientZones = (originalRestrictions || []).some(
+      (r) => canonicalZones.has(r.zona_corporal as string)
+    )
+
+    if (!originalRisksClientZones) {
+      return {
+        success: false,
+        needsReplacement: false,
+        message: `"${exerciseName}" no tiene ninguna restricción registrada que coincida con las limitaciones actuales de ${client.nombre as string} (${limitationsText || 'ninguna limitación registrada'}). No hay evidencia de que este ejercicio sea un riesgo — no se sugiere reemplazo. Si tienes otra razón para cambiarlo, dímelo explícitamente.`,
+      }
+    }
+
     // 6. Buscar candidatos con mismo patron + grupo_muscular
     const { data: candidates } = await supabase
       .from('exercises')
