@@ -689,9 +689,9 @@ Si no hay ninguna limitación mencionada, responde {"hasLimitation": false}`,
   },
 }
 
-export const replaceRoutineExerciseTool: RodaAITool = {
-  name: 'replace_routine_exercise',
-  description: 'Reemplaza un ejercicio específico en la rutina activa de un cliente por una alternativa segura del catálogo, considerando sus limitaciones registradas',
+export const suggestExerciseReplacementTool: RodaAITool = {
+  name: 'suggest_exercise_replacement',
+  description: 'Busca alternativas seguras para reemplazar un ejercicio de la rutina de un cliente por su limitación, y las presenta como opciones. NO ejecuta el reemplazo — solo sugiere.',
   category: 'gym',
   inputSchema: {
     type: 'object',
@@ -764,7 +764,6 @@ export const replaceRoutineExerciseTool: RodaAITool = {
     // 4. Localizar el ejercicio dentro de los días
     let foundExercise: Record<string, unknown> | null = null
     let foundDiaIndex = -1
-    let foundEjercicioIndex = -1
 
     for (let d = 0; d < routineData.dias.length; d++) {
       const ejercicios = routineData.dias[d].ejercicios
@@ -774,7 +773,6 @@ export const replaceRoutineExerciseTool: RodaAITool = {
       if (idx !== -1) {
         foundExercise = ejercicios[idx]
         foundDiaIndex = d
-        foundEjercicioIndex = idx
         break
       }
     }
@@ -826,10 +824,6 @@ export const replaceRoutineExerciseTool: RodaAITool = {
         .map((r) => r.exercise_id as string)
     )
 
-    // Solo considerar "evaluado" un ejercicio que tenga AL MENOS una fila en
-    // exercise_restrictions para alguna zona relevante del cliente (aunque sea
-    // 'caution'). Si el cliente tiene limitaciones activas, un candidato sin
-    // ninguna evaluación registrada no debe asumirse como seguro.
     const evaluatedIds = new Set((restrictions || []).map((r) => r.exercise_id as string))
 
     const safeCandidates = candidates.filter((c) => {
@@ -838,8 +832,6 @@ export const replaceRoutineExerciseTool: RodaAITool = {
       return true
     })
 
-    // Si el filtro estricto no deja ningún candidato, es preferible reportarlo
-    // como "sin alternativa verificada" a elegir uno al azar sin evaluar.
     if (safeCandidates.length === 0 && canonicalZones.size > 0) {
       return {
         success: false,
@@ -854,11 +846,103 @@ export const replaceRoutineExerciseTool: RodaAITool = {
       }
     }
 
-    // 8. Preferir mismo equipo
+    // Tomar hasta 3 candidatos como opciones (preferir mismo equipo primero)
     const sameEquipment = safeCandidates.filter((c) => c.equipo === originalExercise.equipo)
-    const chosen = (sameEquipment.length > 0 ? sameEquipment : safeCandidates)[0]
+    const ordered = [...sameEquipment, ...safeCandidates.filter((c) => !sameEquipment.includes(c))]
+    const options = ordered.slice(0, 3)
 
-    // 9. Reemplazar en memoria
+    return {
+      success: true,
+      needsUserChoice: true,
+      originalExercise: exerciseName,
+      clientName: client.nombre as string,
+      day: routineData.dias[foundDiaIndex].nombre,
+      options: options.map((c) => ({
+        exerciseId: c.id as string,
+        nombre: c.nombre as string,
+        equipo: c.equipo as string,
+      })),
+      message: `Encontré ${options.length} alternativa(s) segura(s) para "${exerciseName}". Pregúntale al usuario cuál prefiere antes de aplicar el cambio.`,
+    }
+  },
+}
+
+export const confirmExerciseReplacementTool: RodaAITool = {
+  name: 'confirm_exercise_replacement',
+  description: 'Ejecuta un reemplazo de ejercicio YA ELEGIDO por el usuario. Solo usar después de que el usuario confirmó explícitamente cuál alternativa prefiere de una lista ya presentada por suggest_exercise_replacement.',
+  category: 'gym',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      clientName: { type: 'string', description: 'Nombre del cliente' },
+      exerciseName: { type: 'string', description: 'Nombre exacto del ejercicio original a reemplazar' },
+      chosenExerciseId: { type: 'string', description: 'exercise_id de la alternativa elegida por el usuario' },
+    },
+    required: ['clientName', 'exerciseName', 'chosenExerciseId'],
+  },
+  execute: async (context: RodaAIBusinessContext, params: RodaAIToolInput) => {
+    const supabase = createGymAdminClient()
+    const clientName = params.clientName as string
+    const exerciseName = params.exerciseName as string
+    const chosenExerciseId = params.chosenExerciseId as string
+
+    const { data: client } = await supabase
+      .from('gym_clients')
+      .select('id, nombre')
+      .eq('business_id', context.businessId)
+      .ilike('nombre', `%${clientName}%`)
+      .maybeSingle()
+
+    if (!client) {
+      return { success: false, error: `No se encontró un cliente llamado "${clientName}"` }
+    }
+
+    const { data: chosenExercise } = await supabase
+      .from('exercises')
+      .select('id, nombre, gif_url')
+      .eq('id', chosenExerciseId)
+      .maybeSingle()
+
+    if (!chosenExercise) {
+      return { success: false, error: 'El ejercicio elegido no existe en el catálogo' }
+    }
+
+    const { data: routines } = await supabase
+      .from('gym_routines')
+      .select('id, routine_data')
+      .eq('client_id', client.id as string)
+      .in('estado', ['activa', 'generada'])
+      .order('generated_at', { ascending: false })
+      .limit(1)
+
+    const routine = routines?.[0]
+    if (!routine) {
+      return { success: false, error: `${client.nombre as string} no tiene una rutina activa para modificar` }
+    }
+
+    const routineData = routine.routine_data as {
+      dias: Array<{ nombre: string; dia_index: number; ejercicios: Array<Record<string, unknown>> }>
+      notas_generales: string | null
+    }
+
+    let foundDiaIndex = -1
+    let foundEjercicioIndex = -1
+
+    for (let d = 0; d < routineData.dias.length; d++) {
+      const idx = routineData.dias[d].ejercicios.findIndex(
+        (e) => (e.nombre as string).toLowerCase() === exerciseName.toLowerCase()
+      )
+      if (idx !== -1) {
+        foundDiaIndex = d
+        foundEjercicioIndex = idx
+        break
+      }
+    }
+
+    if (foundDiaIndex === -1) {
+      return { success: false, error: `No se encontró "${exerciseName}" en la rutina de ${client.nombre as string}` }
+    }
+
     const updatedDias = routineData.dias.map((dia, dIdx) => {
       if (dIdx !== foundDiaIndex) return dia
       return {
@@ -866,27 +950,26 @@ export const replaceRoutineExerciseTool: RodaAITool = {
         ejercicios: dia.ejercicios.map((ej, eIdx) => {
           if (eIdx !== foundEjercicioIndex) return ej
           return {
-            exercise_id: chosen.id as string,
-            nombre: chosen.nombre as string,
+            exercise_id: chosenExercise.id as string,
+            nombre: chosenExercise.nombre as string,
             series: ej.series,
             repeticiones: ej.repeticiones,
             descanso_seg: ej.descanso_seg,
-            gif_url: null,
+            gif_url: (chosenExercise.gif_url as string | null) ?? null,
             peso_objetivo_kg: null,
-            nota: `Reemplazado automáticamente por RodaAI: ${exerciseName} → ${chosen.nombre as string} (limitación registrada)`,
+            nota: `Reemplazado por RodaAI (confirmado por el usuario): ${exerciseName} → ${chosenExercise.nombre as string}`,
           }
         }),
       }
     })
 
-    // 10. Persistir: UPDATE routine_data + DELETE/INSERT gym_routine_exercises
     const { error: updateError } = await supabase
       .from('gym_routines')
       .update({ routine_data: { dias: updatedDias, notas_generales: routineData.notas_generales } })
       .eq('id', routine.id as string)
 
     if (updateError) {
-      return { success: false, error: `Error al guardar la rutina: ${updateError.message}` }
+      return { success: false, error: `Error al guardar: ${updateError.message}` }
     }
 
     await supabase.from('gym_routine_exercises').delete().eq('routine_id', routine.id as string)
@@ -907,17 +990,12 @@ export const replaceRoutineExerciseTool: RodaAITool = {
     const { error: insertError } = await supabase.from('gym_routine_exercises').insert(flatExercises)
 
     if (insertError) {
-      return { success: false, error: `Ejercicio reemplazado en routine_data pero falló la tabla plana: ${insertError.message}` }
+      return { success: false, error: `Reemplazo guardado en routine_data pero falló tabla plana: ${insertError.message}` }
     }
 
     return {
       success: true,
-      replaced: {
-        from: exerciseName,
-        to: chosen.nombre as string,
-        day: routineData.dias[foundDiaIndex].nombre,
-      },
-      message: `Se reemplazó "${exerciseName}" por "${chosen.nombre as string}" en ${routineData.dias[foundDiaIndex].nombre}, considerando las limitaciones de ${client.nombre as string}.`,
+      message: `Confirmado: "${exerciseName}" reemplazado por "${chosenExercise.nombre as string}" en ${routineData.dias[foundDiaIndex].nombre} para ${client.nombre as string}.`,
     }
   },
 }
@@ -1091,6 +1169,7 @@ export const GYM_TOOLS: RodaAITool[] = [
   analyzeInjuryNotesTool,
   detectRoutineConflictsTool,
   detectLimitationFromSessionsTool,
-  replaceRoutineExerciseTool,
+  suggestExerciseReplacementTool,
+  confirmExerciseReplacementTool,
   suggestExerciseRestrictionsTool,
 ];
