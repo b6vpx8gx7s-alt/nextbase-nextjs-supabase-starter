@@ -962,59 +962,31 @@ export const confirmExerciseReplacementTool: RodaAITool = {
       return { success: false, error: `No se encontró "${exerciseName}" en la rutina de ${client.nombre as string}` }
     }
 
-    const updatedDias = routineData.dias.map((dia, dIdx) => {
-      if (dIdx !== foundDiaIndex) return dia
-      return {
-        ...dia,
-        ejercicios: dia.ejercicios.map((ej, eIdx) => {
-          if (eIdx !== foundEjercicioIndex) return ej
-          return {
-            exercise_id: chosenExercise.id as string,
-            nombre: chosenExercise.nombre as string,
-            series: ej.series,
-            repeticiones: ej.repeticiones,
-            descanso_seg: ej.descanso_seg,
-            gif_url: (chosenExercise.gif_url as string | null) ?? null,
-            peso_objetivo_kg: null,
-            nota: `Reemplazado por RodaAI (confirmado por el usuario): ${exerciseName} → ${chosenExercise.nombre as string}`,
-          }
-        }),
-      }
-    })
+    const diaData = routineData.dias[foundDiaIndex]
+    const oldEjercicio = diaData.ejercicios[foundEjercicioIndex]
 
-    const { error: updateError } = await supabase
-      .from('gym_routines')
-      .update({ routine_data: { dias: updatedDias, notas_generales: routineData.notas_generales } })
-      .eq('id', routine.id as string)
-
-    if (updateError) {
-      return { success: false, error: `Error al guardar: ${updateError.message}` }
-    }
-
-    await supabase.from('gym_routine_exercises').delete().eq('routine_id', routine.id as string)
-
-    const flatExercises = updatedDias.flatMap((dia) =>
-      dia.ejercicios.map((ej, orden) => ({
+    const { error: insertError } = await supabase
+      .from('gym_routine_pending_changes')
+      .insert({
         routine_id: routine.id as string,
-        exercise_id: ej.exercise_id as string,
-        dia: Math.min(Math.max(dia.dia_index + 1, 1), 7),
-        series: ej.series as number,
-        reps_o_segundos: parseReps(ej.repeticiones as string),
-        tempo: null,
-        orden,
-        notas_adaptacion: (ej.nota as string | null) ?? null,
-      }))
-    )
-
-    const { error: insertError } = await supabase.from('gym_routine_exercises').insert(flatExercises)
+        business_id: context.businessId,
+        dia_index: diaData.dia_index as number,
+        old_exercise_id: oldEjercicio.exercise_id as string,
+        old_exercise_nombre: exerciseName,
+        new_exercise_id: chosenExercise.id as string,
+        new_exercise_nombre: chosenExercise.nombre as string,
+        new_gif_url: (chosenExercise.gif_url as string | null) ?? null,
+        motivo: null,
+        status: 'pending',
+      })
 
     if (insertError) {
-      return { success: false, error: `Reemplazo guardado en routine_data pero falló tabla plana: ${insertError.message}` }
+      return { success: false, error: `Error al guardar la propuesta: ${insertError.message}` }
     }
 
     return {
       success: true,
-      message: `Confirmado: "${exerciseName}" reemplazado por "${chosenExercise.nombre as string}" en ${routineData.dias[foundDiaIndex].nombre} para ${client.nombre as string}.`,
+      message: `Propuesta guardada: "${exerciseName}" → "${chosenExercise.nombre as string}" para ${client.nombre as string}. El entrenador debe confirmar el cambio en la vista de la rutina antes de que se aplique.`,
     }
   },
 }
