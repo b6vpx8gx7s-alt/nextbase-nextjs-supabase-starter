@@ -817,11 +817,13 @@ export const suggestExerciseReplacementTool: RodaAITool = {
     // 6. Buscar candidatos con mismo patron + grupo_muscular
     const { data: candidates } = await supabase
       .from('exercises')
-      .select('id, nombre, patron, grupo_muscular, equipo')
+      .select('id, nombre, patron, grupo_muscular, equipo, gif_url')
       .eq('patron', originalExercise.patron as string)
       .eq('grupo_muscular', originalExercise.grupo_muscular as string)
       .in('context', ['gym', 'ambos'])
       .neq('id', foundExercise.exercise_id as string)
+      .not('nombre', 'ilike', '%estirami%')
+      .not('nombre', 'ilike', '%stretch%')
 
     if (!candidates || candidates.length === 0) {
       return {
