@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
     const toolsUsed: Array<{ name: string; params: any }> = [];
 
     // Agentic loop — máximo 5 iteraciones
+    try {
     for (let i = 0; i < 5; i++) {
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
@@ -129,6 +130,14 @@ export async function POST(request: NextRequest) {
       }
 
       if (response.stop_reason === 'end_turn') break;
+    }
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : String(err);
+      if (errMessage.includes('credit balance is too low')) {
+        console.error('[RodaAI] Anthropic credit exhausted:', errMessage);
+        throw new Error('RodaAI no está disponible temporalmente. Por favor contacta al administrador de la plataforma.');
+      }
+      throw err;
     }
 
     // Persistir respuesta en la conversación

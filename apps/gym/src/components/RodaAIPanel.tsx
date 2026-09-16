@@ -60,7 +60,10 @@ export function RodaAIPanel({ context }: RodaAIPanelProps) {
         body: JSON.stringify({ message: text, conversationId }),
       })
 
-      if (!response.ok) throw new Error(`Failed: ${response.status}`)
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({})) as { error?: string }
+        throw new Error(errData.error ?? `Failed: ${response.status}`)
+      }
 
       const data = await response.json()
 
