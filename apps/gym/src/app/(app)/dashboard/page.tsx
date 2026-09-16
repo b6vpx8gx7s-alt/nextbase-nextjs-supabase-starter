@@ -1,6 +1,5 @@
 import { ClientList } from '@/components/fisio/ClientList';
-import { AlertCenter } from '@/components/AlertCenter';
-import { LimitationSuggestions } from '@/components/LimitationSuggestions';
+import { TrainerInbox } from '@/components/TrainerInbox';
 import { createSupabaseClient } from '@/supabase-clients/server';
 import { getRodaAIBusinessContext } from '@/lib/rodaai-business';
 
@@ -28,8 +27,7 @@ export default async function DashboardPage() {
           Gestiona los planes de entrenamiento de tus clientes.
         </p>
       </div>
-      <AlertCenter userRole={userRole} />
-      <LimitationSuggestions userRole={userRole} />
+      <TrainerInbox userRole={userRole} />
       <ClientList />
     </div>
   );
