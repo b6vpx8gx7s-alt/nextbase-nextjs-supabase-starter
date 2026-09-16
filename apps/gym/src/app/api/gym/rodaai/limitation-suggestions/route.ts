@@ -6,13 +6,19 @@ import { detectRoutineConflictsTool } from '@/lib/rodaai-tools-gym'
 
 export async function GET(request: NextRequest) {
   return withRodaAIContext(request, async (context) => {
+    const clientId = request.nextUrl.searchParams.get('clientId')
     const supabase = createGymAdminClient()
-    const { data, error } = await supabase
+    let query = supabase
       .from('rodaai_limitation_suggestions')
       .select('id, client_id, session_id, suggested_text, suggested_type, source_quote, status, created_at, gym_clients(nombre)')
       .eq('business_id', context.businessId)
       .eq('status', 'pending')
-      .order('created_at', { ascending: false })
+
+    if (clientId) {
+      query = query.eq('client_id', clientId)
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false })
 
     if (error) throw error
     return { suggestions: data || [] }

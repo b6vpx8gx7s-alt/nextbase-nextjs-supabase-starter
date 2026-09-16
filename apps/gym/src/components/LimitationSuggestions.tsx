@@ -21,16 +21,17 @@ interface ConflictBanner {
 
 interface LimitationSuggestionsProps {
   userRole: 'trainer' | 'client';
+  clientId?: string;
 }
 
-export function LimitationSuggestions({ userRole }: LimitationSuggestionsProps) {
+export function LimitationSuggestions({ userRole, clientId }: LimitationSuggestionsProps) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [resolving, setResolving] = useState<string | null>(null);
   const [conflictBanner, setConflictBanner] = useState<ConflictBanner | null>(null);
 
   useEffect(() => {
-    fetch('/api/gym/rodaai/limitation-suggestions')
+    fetch(`/api/gym/rodaai/limitation-suggestions${clientId ? `?clientId=${clientId}` : ''}`)
       .then((r) => r.json())
       .then((d) => setSuggestions(d.suggestions ?? []))
       .catch(() => setSuggestions([]))

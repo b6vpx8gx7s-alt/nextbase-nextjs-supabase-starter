@@ -11,6 +11,7 @@ import { RoutineView } from '@/components/fisio/RoutineView';
 import { ClinicalHistory } from '@/components/fisio/ClinicalHistory';
 import { PatientGoals } from '@/components/fisio/PatientGoals';
 import { ClientTrainingHistory } from '@/components/gym/ClientTrainingHistory';
+import { LimitationSuggestions } from '@/components/LimitationSuggestions';
 import type { GymClient, PhysioRoutine } from '@/lib/fisio-types';
 import { ChevronLeft, Activity } from 'lucide-react';
 import Link from 'next/link';
@@ -113,6 +114,9 @@ export default function ClientDetailPage() {
           Eliminar
         </Button>
       </div>
+
+      {/* Sugerencias de limitaciones detectadas por IA */}
+      <LimitationSuggestions clientId={id} userRole="trainer" />
 
       {/* Mediciones */}
       <ClinicalHistory clientId={id} />
