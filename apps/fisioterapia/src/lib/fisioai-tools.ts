@@ -1,4 +1,10 @@
 import { type FisioAIBusinessContext } from './fisioai-business';
+import {
+  getClientProfileTool,
+  getActiveRoutinesTool,
+  searchClientsTool,
+  getClientAlertsTool,
+} from './fisioai-tools-physio';
 
 export interface FisioAIToolInput {
   [key: string]: string | number | boolean;
@@ -17,5 +23,9 @@ export interface FisioAITool {
   execute: (context: FisioAIBusinessContext, params: FisioAIToolInput) => Promise<any>;
 }
 
-// Tools se implementan en fases posteriores
-export const FISIO_TOOLS: FisioAITool[] = [];
+export const FISIO_TOOLS: FisioAITool[] = [
+  getClientProfileTool,
+  getActiveRoutinesTool,
+  searchClientsTool,
+  getClientAlertsTool,
+];
