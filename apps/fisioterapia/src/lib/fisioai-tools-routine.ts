@@ -10,6 +10,7 @@ export const suggestExerciseReplacementTool: FisioAITool = {
     type: 'object',
     properties: {
       clientName: { type: 'string', description: 'Nombre del paciente' },
+      clientId: { type: 'string', description: 'UUID exacto del paciente (usar si hubo ambigüedad previa en el nombre)' },
       exerciseName: {
         type: 'string',
         description: 'Nombre exacto del ejercicio a reemplazar, tal como aparece en su rutina',
@@ -20,18 +21,44 @@ export const suggestExerciseReplacementTool: FisioAITool = {
   execute: async (context: FisioAIBusinessContext, params: FisioAIToolInput) => {
     const supabase = createFisioAdminClient();
     const clientName = params.clientName as string;
+    const clientId = params.clientId as string | undefined;
     const exerciseName = params.exerciseName as string;
 
-    // 1. Buscar paciente
-    const { data: client } = await supabase
-      .from('physio_clients')
-      .select('id, nombre')
-      .eq('business_id', context.businessId)
-      .ilike('nombre', `%${clientName}%`)
-      .maybeSingle();
+    // 1. Buscar paciente — soporta búsqueda por ID exacto o por nombre
+    let client: { id: string; nombre: string } | null = null;
 
-    if (!client) {
-      return { success: false, error: `No se encontró un paciente llamado "${clientName}"` };
+    if (clientId) {
+      const { data } = await supabase
+        .from('physio_clients')
+        .select('id, nombre')
+        .eq('id', clientId)
+        .eq('business_id', context.businessId)
+        .maybeSingle();
+      client = data;
+      if (!client) return { success: false, error: `No se encontró el paciente con ID "${clientId}"` };
+    } else {
+      const { data: matchingClients, error: clientSearchError } = await supabase
+        .from('physio_clients')
+        .select('id, nombre')
+        .eq('business_id', context.businessId)
+        .ilike('nombre', `%${clientName}%`)
+        .limit(5);
+
+      if (clientSearchError) {
+        return { success: false, error: `Error buscando paciente: ${clientSearchError.message}` };
+      }
+      if (!matchingClients || matchingClients.length === 0) {
+        return { success: false, error: `No se encontró un paciente llamado "${clientName}"` };
+      }
+      if (matchingClients.length > 1) {
+        return {
+          success: false,
+          needsDisambiguation: true,
+          options: matchingClients.map((c) => ({ id: c.id, nombre: c.nombre })),
+          error: `Hay ${matchingClients.length} pacientes que coinciden con "${clientName}": ${matchingClients.map((c) => c.nombre).join(', ')}. Pídele al usuario el ID exacto o un nombre más específico, y vuelve a llamar a esta herramienta usando ese ID en el campo clientId.`,
+        };
+      }
+      client = matchingClients[0];
     }
 
     // 2. Resolver zonas canónicas desde pathologies y pain_map
@@ -213,6 +240,7 @@ export const confirmExerciseReplacementTool: FisioAITool = {
     type: 'object',
     properties: {
       clientName: { type: 'string', description: 'Nombre del paciente' },
+      clientId: { type: 'string', description: 'UUID exacto del paciente (usar si hubo ambigüedad previa en el nombre)' },
       exerciseName: {
         type: 'string',
         description: 'Nombre exacto del ejercicio original a reemplazar',
@@ -227,18 +255,44 @@ export const confirmExerciseReplacementTool: FisioAITool = {
   execute: async (context: FisioAIBusinessContext, params: FisioAIToolInput) => {
     const supabase = createFisioAdminClient();
     const clientName = params.clientName as string;
+    const clientId = params.clientId as string | undefined;
     const exerciseName = params.exerciseName as string;
     const chosenExerciseId = params.chosenExerciseId as string;
 
-    const { data: client } = await supabase
-      .from('physio_clients')
-      .select('id, nombre')
-      .eq('business_id', context.businessId)
-      .ilike('nombre', `%${clientName}%`)
-      .maybeSingle();
+    let client: { id: string; nombre: string } | null = null;
 
-    if (!client) {
-      return { success: false, error: `No se encontró un paciente llamado "${clientName}"` };
+    if (clientId) {
+      const { data } = await supabase
+        .from('physio_clients')
+        .select('id, nombre')
+        .eq('id', clientId)
+        .eq('business_id', context.businessId)
+        .maybeSingle();
+      client = data;
+      if (!client) return { success: false, error: `No se encontró el paciente con ID "${clientId}"` };
+    } else {
+      const { data: matchingClients, error: clientSearchError } = await supabase
+        .from('physio_clients')
+        .select('id, nombre')
+        .eq('business_id', context.businessId)
+        .ilike('nombre', `%${clientName}%`)
+        .limit(5);
+
+      if (clientSearchError) {
+        return { success: false, error: `Error buscando paciente: ${clientSearchError.message}` };
+      }
+      if (!matchingClients || matchingClients.length === 0) {
+        return { success: false, error: `No se encontró un paciente llamado "${clientName}"` };
+      }
+      if (matchingClients.length > 1) {
+        return {
+          success: false,
+          needsDisambiguation: true,
+          options: matchingClients.map((c) => ({ id: c.id, nombre: c.nombre })),
+          error: `Hay ${matchingClients.length} pacientes que coinciden con "${clientName}": ${matchingClients.map((c) => c.nombre).join(', ')}. Pídele al usuario el ID exacto o un nombre más específico, y vuelve a llamar a esta herramienta usando ese ID en el campo clientId.`,
+        };
+      }
+      client = matchingClients[0];
     }
 
     const { data: chosenExercise } = await supabase
