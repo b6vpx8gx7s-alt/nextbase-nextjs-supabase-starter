@@ -10,7 +10,7 @@ import { redirect } from 'next/navigation';
 import { type ReactNode, Suspense } from 'react';
 import { AppSidebar } from './app-sidebar';
 import { DynamicBreadcrumb } from '@/components/dynamic-breadcrumb';
-import { getNutriAIBusinessContext, type NutriAIBusinessContext } from '@/lib/nutrai-business';
+import { getNutriAIBusinessContext } from '@/lib/nutrai-business';
 import { NutriAIPanel } from '@/components/NutriAIPanel';
 
 async function AuthGuard({ children }: { children: ReactNode }) {
@@ -48,15 +48,20 @@ async function AuthGuard({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-export default async function AppLayout({ children }: { children: ReactNode }) {
+async function NutriAIPanelLoader() {
   const supabase = await createSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
 
-  let nutriaiContext: NutriAIBusinessContext | null = null;
-  if (user) {
-    try { nutriaiContext = await getNutriAIBusinessContext(user.id); } catch {}
+  try {
+    const context = await getNutriAIBusinessContext(user.id);
+    return <NutriAIPanel context={context} />;
+  } catch {
+    return null;
   }
+}
 
+export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <>
       <SidebarProvider>
@@ -74,7 +79,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           </Suspense>
         </SidebarInset>
       </SidebarProvider>
-      {nutriaiContext && <NutriAIPanel context={nutriaiContext} />}
+      <Suspense fallback={null}>
+        <NutriAIPanelLoader />
+      </Suspense>
     </>
   );
 }
