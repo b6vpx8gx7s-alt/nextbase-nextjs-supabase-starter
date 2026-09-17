@@ -90,6 +90,9 @@ importers:
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      openai:
+        specifier: ^7.15.0
+        version: 7.15.0(undici@7.25.0)(zod@4.4.3)
       react:
         specifier: ^19.2.6
         version: 19.2.6
