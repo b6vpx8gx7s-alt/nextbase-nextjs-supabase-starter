@@ -2,10 +2,6 @@ import { NextRequest } from 'next/server';
 import { extractFisioAIContext } from '../context';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 export async function POST(request: NextRequest) {
   try {
     await extractFisioAIContext(request);
@@ -16,6 +12,8 @@ export async function POST(request: NextRequest) {
     if (!audioFile) {
       return Response.json({ error: 'No se recibió archivo de audio' }, { status: 400 });
     }
+
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     const transcription = await openai.audio.transcriptions.create({
       file: audioFile,

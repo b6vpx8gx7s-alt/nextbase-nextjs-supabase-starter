@@ -2,10 +2,6 @@ import { NextRequest } from 'next/server'
 import { extractRodaAIContext } from '../context'
 import OpenAI from 'openai'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
-
 export async function POST(request: NextRequest) {
   // FormData no es compatible con withRodaAIContext (espera JSON).
   // Usamos extractRodaAIContext directamente para validar auth.
@@ -18,6 +14,8 @@ export async function POST(request: NextRequest) {
     if (!audioFile) {
       return Response.json({ error: 'No se recibió archivo de audio' }, { status: 400 })
     }
+
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
     const transcription = await openai.audio.transcriptions.create({
       file: audioFile,
