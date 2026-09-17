@@ -10,6 +10,8 @@ import { redirect } from 'next/navigation';
 import { type ReactNode, Suspense } from 'react';
 import { AppSidebar } from './app-sidebar';
 import { DynamicBreadcrumb } from '@/components/dynamic-breadcrumb';
+import { getNutriAIBusinessContext, type NutriAIBusinessContext } from '@/lib/nutrai-business';
+import { NutriAIPanel } from '@/components/NutriAIPanel';
 
 async function AuthGuard({ children }: { children: ReactNode }) {
   const supabase = await createSupabaseClient();
@@ -46,22 +48,33 @@ async function AuthGuard({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-export default function AppLayout({ children }: { children: ReactNode }) {
+export default async function AppLayout({ children }: { children: ReactNode }) {
+  const supabase = await createSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  let nutriaiContext: NutriAIBusinessContext | null = null;
+  if (user) {
+    try { nutriaiContext = await getNutriAIBusinessContext(user.id); } catch {}
+  }
+
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
+    <>
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset>
+          <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <Suspense fallback={null}>
+              <DynamicBreadcrumb />
+            </Suspense>
+          </header>
           <Suspense fallback={null}>
-            <DynamicBreadcrumb />
+            <AuthGuard>{children}</AuthGuard>
           </Suspense>
-        </header>
-        <Suspense fallback={null}>
-          <AuthGuard>{children}</AuthGuard>
-        </Suspense>
-      </SidebarInset>
-    </SidebarProvider>
+        </SidebarInset>
+      </SidebarProvider>
+      {nutriaiContext && <NutriAIPanel context={nutriaiContext} />}
+    </>
   );
 }
