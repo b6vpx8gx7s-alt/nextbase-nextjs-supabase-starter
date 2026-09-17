@@ -61,22 +61,34 @@ export const suggestExerciseReplacementTool: FisioAITool = {
       client = matchingClients[0];
     }
 
-    // 2. Resolver zonas canónicas desde pathologies y pain_map
-    // (ya vienen normalizadas — no necesitamos zone_aliases)
-    const [pathRes, painRes] = await Promise.all([
-      supabase
-        .from('pathologies')
-        .select('zona_corporal')
-        .eq('client_id', client.id as string),
-      supabase
-        .from('pain_map')
-        .select('zona_corporal')
-        .eq('client_id', client.id as string),
+    // 2. Resolver zonas canónicas desde pathologies y pain_map via zone_aliases
+    const [pathRes, painRes, aliasesRes] = await Promise.all([
+      supabase.from('pathologies').select('zona_corporal').eq('client_id', client.id as string),
+      supabase.from('pain_map').select('zona_corporal').eq('client_id', client.id as string),
+      supabase.from('zone_aliases').select('zona_usuario, zona_canonica'),
     ]);
 
+    const rawZones = [
+      ...(pathRes.data ?? []).map((p) => p.zona_corporal as string),
+      ...(painRes.data ?? []).map((p) => p.zona_corporal as string),
+    ].filter(Boolean);
+
+    const allAliases = aliasesRes.data ?? [];
     const canonicalZones = new Set<string>();
-    for (const p of pathRes.data ?? []) canonicalZones.add((p.zona_corporal as string).toLowerCase());
-    for (const p of painRes.data ?? []) canonicalZones.add((p.zona_corporal as string).toLowerCase());
+
+    for (const rawZone of rawZones) {
+      const exact = allAliases.find(
+        (a) => (a.zona_usuario as string).toLowerCase() === rawZone.toLowerCase()
+      );
+      if (exact) {
+        canonicalZones.add(exact.zona_canonica as string);
+      } else {
+        const partial = allAliases.find((a) =>
+          rawZone.toLowerCase().includes((a.zona_usuario as string).toLowerCase())
+        );
+        if (partial) canonicalZones.add(partial.zona_canonica as string);
+      }
+    }
 
     // 3. Rutina más reciente activa o generada
     const { data: routines } = await supabase
