@@ -2,20 +2,16 @@ import { createAdminClient } from '@/supabase-clients/admin';
 import { type NutriAIBusinessContext } from './nutrai-business';
 import { type NutriAITool, type NutriAIToolInput } from './nutrai-tools';
 
-// NOTE: nutrition_clients table does not exist yet — client identity lives as
-// client_name / client_phone / client_email / client_document directly on
-// nutrition_plans. All tools group by client_name as the de-facto client key.
-
 export const searchClientsTool: NutriAITool = {
   name: 'search_clients',
   description:
-    'Busca clientes por nombre (fragmento parcial) o lista los primeros 10 del negocio si no se pasa nombre. Retorna nombre, teléfono, email y cantidad de planes.',
+    'Busca clientes del negocio por nombre (fragmento parcial) o lista los primeros 5. Retorna id, nombre, teléfono, email y cantidad de planes registrados.',
   inputSchema: {
     type: 'object',
     properties: {
       name: {
         type: 'string',
-        description: 'Nombre o fragmento del nombre a buscar. Vacío para listar todos.',
+        description: 'Nombre o fragmento del nombre a buscar. Vacío para listar los 5 primeros.',
       },
     },
     required: [],
@@ -24,51 +20,50 @@ export const searchClientsTool: NutriAITool = {
     const supabase = createAdminClient();
     const searchName = ((params.name as string | undefined) ?? '').trim();
 
-    // Fetch enough rows to aggregate; use limit(100) here, we'll cap unique clients to 10 after grouping
     let query = supabase
-      .from('nutrition_plans')
-      .select('id, client_name, client_phone, client_email, created_at')
+      .from('nutrition_clients')
+      .select('id, nombre, telefono, email')
       .eq('business_id', context.businessId)
-      .order('client_name')
-      .order('created_at', { ascending: false });
+      .order('nombre');
 
     if (searchName) {
-      query = query.ilike('client_name', `%${searchName}%`);
+      query = query.ilike('nombre', `%${searchName}%`);
     }
 
-    const { data: rows, error } = await query.limit(100);
+    const { data: clients, error } = await query.limit(5);
     if (error) throw error;
 
-    // Group by client_name — first occurrence (most recent plan) wins for contact fields
-    const map = new Map<string, {
-      name: string;
-      phone: string | null;
-      email: string | null;
-      planCount: number;
-      latestPlanId: string;
-    }>();
-
-    for (const row of rows ?? []) {
-      const name = row.client_name as string;
-      if (!map.has(name)) {
-        map.set(name, {
-          name,
-          phone: row.client_phone as string | null,
-          email: row.client_email as string | null,
-          planCount: 0,
-          latestPlanId: row.id as string,
-        });
-      }
-      map.get(name)!.planCount++;
+    if (!clients || clients.length === 0) {
+      return { success: true, count: 0, clients: [] };
     }
 
-    const clients = Array.from(map.values()).slice(0, 10);
+    // Count plans per client via client_id
+    const clientIds = (clients as Array<{ id: string }>).map((c) => c.id);
+    const { data: planRows } = await supabase
+      .from('nutrition_plans')
+      .select('client_id')
+      .eq('business_id', context.businessId)
+      .in('client_id', clientIds);
+
+    const countByClient = new Map<string, number>();
+    for (const row of planRows ?? []) {
+      const cid = row.client_id as string;
+      countByClient.set(cid, (countByClient.get(cid) ?? 0) + 1);
+    }
+
+    const result = (clients as Array<Record<string, unknown>>).map((c) => ({
+      id: c.id,
+      nombre: c.nombre,
+      telefono: c.telefono ?? null,
+      email: c.email ?? null,
+      planCount: countByClient.get(c.id as string) ?? 0,
+    }));
 
     return {
       success: true,
-      count: clients.length,
-      clients,
-      hint: 'Usa latestPlanId con get_active_plan o clientName con get_client_profile para obtener más detalle.',
+      count: result.length,
+      clients: result,
+      hint: 'Usa el id del cliente con get_client_profile o get_active_plan para más detalle.',
     };
   },
 };
@@ -76,63 +71,83 @@ export const searchClientsTool: NutriAITool = {
 export const getClientProfileTool: NutriAITool = {
   name: 'get_client_profile',
   description:
-    'Obtiene el historial completo de planes de un cliente por nombre, con datos clínicos (patient_info) de cada plan. Si hay ambigüedad, retorna needsDisambiguation con la lista de nombres que coinciden.',
+    'Obtiene el historial completo de planes de un cliente con datos clínicos (patient_info). Acepta clientId (UUID, preferido tras una búsqueda) o clientName (para búsqueda con posible desambiguación).',
   inputSchema: {
     type: 'object',
     properties: {
+      clientId: {
+        type: 'string',
+        description: 'UUID del cliente (nutrition_clients.id). Usar cuando ya se conoce el id exacto.',
+      },
       clientName: {
         type: 'string',
-        description: 'Nombre exacto o parcial del cliente',
+        description: 'Nombre o fragmento del nombre. Usar solo si no se tiene el clientId.',
       },
     },
-    required: ['clientName'],
+    required: [],
   },
   execute: async (context: NutriAIBusinessContext, params: NutriAIToolInput) => {
     const supabase = createAdminClient();
-    const clientName = ((params.clientName as string) ?? '').trim();
-    if (!clientName) throw new Error('clientName es requerido');
+    let clientId = ((params.clientId as string | undefined) ?? '').trim() || undefined;
 
-    // Step 1: find unique matching names (never .maybeSingle() — queremos la lista)
-    const { data: matchRows, error: searchErr } = await supabase
-      .from('nutrition_plans')
-      .select('client_name')
-      .eq('business_id', context.businessId)
-      .ilike('client_name', `%${clientName}%`);
+    if (!clientId) {
+      const clientName = ((params.clientName as string | undefined) ?? '').trim();
+      if (!clientName) throw new Error('Se requiere clientId o clientName');
 
-    if (searchErr) throw searchErr;
+      // Never .maybeSingle() — queremos la lista completa para detectar ambigüedad
+      const { data: matches, error: searchErr } = await supabase
+        .from('nutrition_clients')
+        .select('id, nombre')
+        .eq('business_id', context.businessId)
+        .ilike('nombre', `%${clientName}%`)
+        .limit(5);
 
-    const uniqueNames = [...new Set((matchRows ?? []).map((r) => r.client_name as string))];
+      if (searchErr) throw searchErr;
 
-    if (uniqueNames.length === 0) {
-      return {
-        success: false,
-        error: `No se encontró ningún cliente con nombre similar a "${clientName}"`,
-      };
+      if (!matches || matches.length === 0) {
+        return {
+          success: false,
+          error: `No se encontró ningún cliente con nombre similar a "${clientName}"`,
+        };
+      }
+
+      if (matches.length > 1) {
+        return {
+          success: false,
+          needsDisambiguation: true,
+          matches: (matches as Array<{ id: string; nombre: string }>).map((m) => ({
+            clientId: m.id,
+            nombre: m.nombre,
+          })),
+          message: `Hay ${matches.length} clientes que coinciden con "${clientName}". ¿A cuál te refieres? Usa el clientId exacto para continuar.`,
+        };
+      }
+
+      clientId = (matches[0] as { id: string }).id;
     }
 
-    if (uniqueNames.length > 1) {
-      return {
-        success: false,
-        needsDisambiguation: true,
-        matches: uniqueNames,
-        message: `Hay ${uniqueNames.length} clientes que coinciden con "${clientName}". ¿A cuál te refieres?`,
-      };
+    // Fetch client data + all plans with patient_info
+    const [clientRes, plansRes] = await Promise.all([
+      supabase
+        .from('nutrition_clients')
+        .select('id, nombre, telefono, email, documento, created_at')
+        .eq('id', clientId)
+        .eq('business_id', context.businessId),
+      supabase
+        .from('nutrition_plans')
+        .select('id, duration_days, notes, created_at, patient_info(*)')
+        .eq('client_id', clientId)
+        .eq('business_id', context.businessId)
+        .order('created_at', { ascending: false }),
+    ]);
+
+    if (clientRes.error) throw clientRes.error;
+    if (!clientRes.data || clientRes.data.length === 0) {
+      return { success: false, error: 'Cliente no encontrado o sin acceso' };
     }
 
-    // Step 2: exactly one unique name — fetch all plans + patient_info
-    const exactName = uniqueNames[0];
-
-    const { data: plans, error: plansErr } = await supabase
-      .from('nutrition_plans')
-      .select('id, client_name, client_phone, client_email, client_document, duration_days, notes, created_at, patient_info(*)')
-      .eq('business_id', context.businessId)
-      .eq('client_name', exactName)
-      .order('created_at', { ascending: false });
-
-    if (plansErr) throw plansErr;
-
-    // Flatten patient_info from PostgREST one-to-many array to single object
-    const plansFormatted = ((plans ?? []) as Array<Record<string, unknown>>).map((p) => {
+    const client = (clientRes.data as Array<Record<string, unknown>>)[0];
+    const plans = ((plansRes.data ?? []) as Array<Record<string, unknown>>).map((p) => {
       const pi = p.patient_info;
       return {
         ...p,
@@ -140,18 +155,11 @@ export const getClientProfileTool: NutriAITool = {
       };
     });
 
-    const latest: Record<string, unknown> | undefined = plansFormatted[0];
-
     return {
       success: true,
-      client: {
-        name: exactName,
-        phone: (latest?.client_phone as string | null) ?? null,
-        email: (latest?.client_email as string | null) ?? null,
-        document: (latest?.client_document as string | null) ?? null,
-      },
-      planCount: plansFormatted.length,
-      plans: plansFormatted,
+      client,
+      planCount: plans.length,
+      plans,
     };
   },
 };
@@ -159,49 +167,66 @@ export const getClientProfileTool: NutriAITool = {
 export const getActivePlanTool: NutriAITool = {
   name: 'get_active_plan',
   description:
-    'Obtiene el plan nutricional más reciente de un cliente con sus comidas agrupadas por día. Requiere planId (UUID del plan — usar latestPlanId de search_clients o el id de get_client_profile).',
+    'Obtiene el plan nutricional más reciente de un cliente con sus comidas agrupadas por día. Requiere clientId (UUID de nutrition_clients).',
   inputSchema: {
     type: 'object',
     properties: {
-      planId: {
+      clientId: {
         type: 'string',
-        description: 'UUID del plan (nutrition_plans.id). Obtenerlo desde search_clients.latestPlanId o get_client_profile.plans[0].id.',
+        description: 'UUID del cliente (nutrition_clients.id).',
       },
     },
-    required: ['planId'],
+    required: ['clientId'],
   },
   execute: async (context: NutriAIBusinessContext, params: NutriAIToolInput) => {
     const supabase = createAdminClient();
-    const planId = (params.planId as string).trim();
-    if (!planId) throw new Error('planId es requerido');
+    const clientId = ((params.clientId as string) ?? '').trim();
+    if (!clientId) throw new Error('clientId es requerido');
 
-    const [planRes, mealsRes] = await Promise.all([
+    // Fetch most recent plan + client name in parallel
+    const [planRes, clientRes] = await Promise.all([
       supabase
         .from('nutrition_plans')
-        .select('id, client_name, client_phone, duration_days, notes, created_at, patient_info(*)')
-        .eq('id', planId)
-        .eq('business_id', context.businessId),
+        .select('id, duration_days, notes, created_at, patient_info(*)')
+        .eq('client_id', clientId)
+        .eq('business_id', context.businessId)
+        .order('created_at', { ascending: false })
+        .limit(1),
       supabase
-        .from('nutrition_plan_meals')
-        .select('day, meal_type, foods, macros, notes')
-        .eq('plan_id', planId)
-        .order('day')
-        .order('meal_type'),
+        .from('nutrition_clients')
+        .select('nombre, telefono')
+        .eq('id', clientId)
+        .eq('business_id', context.businessId),
     ]);
 
     if (planRes.error) throw planRes.error;
     if (!planRes.data || planRes.data.length === 0) {
-      return { success: false, error: 'Plan no encontrado o sin acceso' };
+      return { success: false, error: 'Este cliente no tiene planes registrados' };
     }
 
-    const plan = planRes.data[0];
+    const plan = (planRes.data as Array<Record<string, unknown>>)[0];
+    const planId = plan.id as string;
     const piRaw = plan.patient_info;
     const patientInfo = Array.isArray(piRaw) ? (piRaw[0] ?? null) : (piRaw ?? null);
 
-    // Group meals by day
+    const clientData =
+      clientRes.data && (clientRes.data as Array<Record<string, unknown>>).length > 0
+        ? (clientRes.data as Array<Record<string, unknown>>)[0]
+        : null;
+
+    // Fetch meals for the plan
+    const { data: mealsData, error: mealsErr } = await supabase
+      .from('nutrition_plan_meals')
+      .select('day, meal_type, foods, macros, notes')
+      .eq('plan_id', planId)
+      .order('day')
+      .order('meal_type');
+
+    if (mealsErr) throw mealsErr;
+
     type MealEntry = { meal_type: string; foods: unknown; macros: unknown; notes: unknown };
     const mealsByDay: Record<number, MealEntry[]> = {};
-    for (const meal of mealsRes.data ?? []) {
+    for (const meal of mealsData ?? []) {
       const day = meal.day as number;
       if (!mealsByDay[day]) mealsByDay[day] = [];
       mealsByDay[day].push({
@@ -215,9 +240,10 @@ export const getActivePlanTool: NutriAITool = {
     return {
       success: true,
       plan: {
-        id: plan.id,
-        clientName: plan.client_name,
-        clientPhone: plan.client_phone,
+        id: planId,
+        clientId,
+        clientName: clientData?.nombre ?? null,
+        clientPhone: clientData?.telefono ?? null,
         durationDays: plan.duration_days,
         notes: plan.notes,
         createdAt: plan.created_at,
@@ -235,7 +261,7 @@ export const getActivePlanTool: NutriAITool = {
 export const getClientAlertsTool: NutriAITool = {
   name: 'get_client_alerts',
   description:
-    'Genera alertas sobre clientes del negocio: plan desactualizado (>30 días sin plan nuevo) y patient_info clínico incompleto (falta objetivo o datos clínicos clave).',
+    'Genera alertas sobre clientes del negocio: sin ningún plan, plan desactualizado (>30 días) y patient_info clínico incompleto.',
   inputSchema: {
     type: 'object',
     properties: {},
@@ -244,48 +270,77 @@ export const getClientAlertsTool: NutriAITool = {
   execute: async (context: NutriAIBusinessContext, _params: NutriAIToolInput) => {
     const supabase = createAdminClient();
 
-    const { data: allPlans, error } = await supabase
+    const { data: allClients, error: clientsErr } = await supabase
+      .from('nutrition_clients')
+      .select('id, nombre')
+      .eq('business_id', context.businessId);
+
+    if (clientsErr) throw clientsErr;
+
+    if (!allClients || allClients.length === 0) {
+      return {
+        success: true,
+        totalClients: 0,
+        alerts: {
+          noPlan: { count: 0, clients: [], description: 'Clientes sin ningún plan registrado' },
+          stalePlan: { count: 0, clients: [], description: 'Clientes cuyo plan más reciente tiene más de 30 días' },
+          incompleteInfo: { count: 0, clients: [], description: 'Clientes con patient_info incompleto' },
+        },
+        totalAlerts: 0,
+      };
+    }
+
+    const clientIds = (allClients as Array<{ id: string; nombre: string }>).map((c) => c.id);
+    const clientNameById = new Map<string, string>(
+      (allClients as Array<{ id: string; nombre: string }>).map((c) => [c.id, c.nombre])
+    );
+
+    // All plans for these clients, ordered desc so first occurrence per client is the most recent
+    const { data: allPlans, error: plansErr } = await supabase
       .from('nutrition_plans')
-      .select('id, client_name, created_at, patient_info(objective, restrictions, allergies, medical_conditions)')
+      .select('client_id, created_at, patient_info(objective, restrictions, allergies, medical_conditions)')
       .eq('business_id', context.businessId)
-      .order('client_name')
+      .in('client_id', clientIds)
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (plansErr) throw plansErr;
 
-    // One entry per unique client_name — first row is their most recent plan (desc order)
-    type ClientEntry = {
-      name: string;
-      latestCreatedAt: string;
-      patientInfo: Record<string, unknown> | null;
-    };
-    const clientMap = new Map<string, ClientEntry>();
+    type PlanEntry = { createdAt: string; patientInfo: Record<string, unknown> | null };
+    const latestPlanByClient = new Map<string, PlanEntry>();
 
     for (const plan of allPlans ?? []) {
-      const name = plan.client_name as string;
-      if (!clientMap.has(name)) {
+      const cid = plan.client_id as string;
+      if (!latestPlanByClient.has(cid)) {
         const piRaw = plan.patient_info;
-        const pi = Array.isArray(piRaw) ? (piRaw[0] ?? null) : (piRaw as Record<string, unknown> | null ?? null);
-        clientMap.set(name, {
-          name,
-          latestCreatedAt: plan.created_at as string,
-          patientInfo: pi,
-        });
+        const pi =
+          Array.isArray(piRaw)
+            ? (piRaw[0] ?? null)
+            : ((piRaw as Record<string, unknown> | null) ?? null);
+        latestPlanByClient.set(cid, { createdAt: plan.created_at as string, patientInfo: pi });
       }
     }
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
+    const noPlanClients: string[] = [];
     const stalePlanClients: string[] = [];
     const incompleteInfoClients: string[] = [];
 
-    for (const client of clientMap.values()) {
-      if (new Date(client.latestCreatedAt) < thirtyDaysAgo) {
-        stalePlanClients.push(client.name);
+    for (const clientId of clientIds) {
+      const nombre = clientNameById.get(clientId) ?? clientId;
+      const latestPlan = latestPlanByClient.get(clientId);
+
+      if (!latestPlan) {
+        noPlanClients.push(nombre);
+        continue;
       }
 
-      const pi = client.patientInfo;
+      if (new Date(latestPlan.createdAt) < thirtyDaysAgo) {
+        stalePlanClients.push(nombre);
+      }
+
+      const pi = latestPlan.patientInfo;
       const missingObjective = !pi?.objective;
       const missingClinical =
         (!pi?.restrictions || (pi.restrictions as unknown[]).length === 0) &&
@@ -293,14 +348,19 @@ export const getClientAlertsTool: NutriAITool = {
         !pi?.medical_conditions;
 
       if (!pi || missingObjective || missingClinical) {
-        incompleteInfoClients.push(client.name);
+        incompleteInfoClients.push(nombre);
       }
     }
 
     return {
       success: true,
-      totalClients: clientMap.size,
+      totalClients: allClients.length,
       alerts: {
+        noPlan: {
+          count: noPlanClients.length,
+          clients: noPlanClients,
+          description: 'Clientes sin ningún plan registrado',
+        },
         stalePlan: {
           count: stalePlanClients.length,
           clients: stalePlanClients,
@@ -311,10 +371,8 @@ export const getClientAlertsTool: NutriAITool = {
           clients: incompleteInfoClients,
           description: 'Clientes con patient_info incompleto (falta objetivo o datos clínicos)',
         },
-        // noPlan category omitted: sin tabla nutrition_clients independiente,
-        // no es posible conocer clientes que nunca han tenido un plan.
       },
-      totalAlerts: stalePlanClients.length + incompleteInfoClients.length,
+      totalAlerts: noPlanClients.length + stalePlanClients.length + incompleteInfoClients.length,
     };
   },
 };
