@@ -15,9 +15,17 @@ import { NutriAIPanel } from '@/components/NutriAIPanel';
 
 async function AuthGuard({ children }: { children: ReactNode }) {
   const supabase = await createSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+  // [DEBUG-SSO] Remove once SSO session issue is resolved
+  console.error('[AuthGuard] getUser result:', {
+    userId: user?.id ?? null,
+    email: user?.email ?? null,
+    supabaseError: userError?.message ?? null,
+  });
 
   if (!user) {
+    console.error('[AuthGuard] redirect → /login (no user from getUser)');
     redirect('/login');
   }
 
@@ -29,7 +37,16 @@ async function AuthGuard({ children }: { children: ReactNode }) {
 
   const businessId = profileRes.data?.business_id;
 
+  console.error('[AuthGuard] profile check:', {
+    userId: user.id,
+    businessId: businessId ?? null,
+    profileError: profileRes.error?.message ?? null,
+    employeeId: employeeRes.data?.employee_id ?? null,
+    employeeError: employeeRes.error?.message ?? null,
+  });
+
   if (!businessId && !employeeRes.data?.employee_id) {
+    console.error('[AuthGuard] redirect → /login (no businessId and no employeeId)');
     redirect('/login');
   }
 
@@ -42,7 +59,22 @@ async function AuthGuard({ children }: { children: ReactNode }) {
       admin.from('businesses').select('category').eq('id', businessId).maybeSingle(),
       admin.from('business_services').select('service').eq('business_id', businessId).eq('service', 'nutricion').maybeSingle(),
     ]);
-    if (bizRes.data?.category !== 'gym' || !svcRes.data) redirect('/login');
+
+    console.error('[AuthGuard] business check:', {
+      businessId,
+      category: bizRes.data?.category ?? null,
+      bizError: bizRes.error?.message ?? null,
+      hasNutricion: !!svcRes.data,
+      svcError: svcRes.error?.message ?? null,
+    });
+
+    if (bizRes.data?.category !== 'gym' || !svcRes.data) {
+      console.error('[AuthGuard] redirect → /login (category !== gym or no nutricion service)', {
+        category: bizRes.data?.category,
+        hasNutricion: !!svcRes.data,
+      });
+      redirect('/login');
+    }
   }
 
   return <>{children}</>;
