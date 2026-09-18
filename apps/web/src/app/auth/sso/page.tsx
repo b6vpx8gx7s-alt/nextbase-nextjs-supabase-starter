@@ -14,6 +14,12 @@ export default function SSOPage() {
       const accessToken = params.get('access_token');
       const refreshToken = params.get('refresh_token');
 
+      console.log('[SSO] hash params:', {
+        hasAccessToken: !!accessToken,
+        hasRefreshToken: !!refreshToken,
+        rawHash: hash.slice(0, 80) + (hash.length > 80 ? '…' : ''),
+      });
+
       if (!accessToken || !refreshToken) {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
@@ -24,17 +30,25 @@ export default function SSOPage() {
         return;
       }
 
-      const { error } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
+      // Establish session server-side so AuthGuard can read the same cookies.
+      const res = await fetch('/api/auth/sso', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token: accessToken, refresh_token: refreshToken }),
       });
 
-      if (error) {
-        setErrorMsg(`setSession falló: ${error.message}`);
+      console.log('[SSO] /api/auth/sso status:', res.status);
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        console.error('[SSO] /api/auth/sso error:', body);
+        setErrorMsg(`setSession falló: ${body.error ?? res.status}`);
         return;
       }
 
+      // Clean the hash from the browser history
       window.history.replaceState(null, '', window.location.pathname);
+
       window.location.href = '/dashboard';
     }
 
