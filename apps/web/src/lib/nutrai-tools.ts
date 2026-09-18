@@ -1,4 +1,10 @@
 import { type NutriAIBusinessContext } from './nutrai-business';
+import {
+  searchClientsTool,
+  getClientProfileTool,
+  getActivePlanTool,
+  getClientAlertsTool,
+} from './nutrai-tools-plans';
 
 export interface NutriAIToolInput {
   [key: string]: string | number | boolean;
@@ -17,4 +23,9 @@ export interface NutriAITool {
   execute: (context: NutriAIBusinessContext, params: NutriAIToolInput) => Promise<any>;
 }
 
-export const NUTRAI_TOOLS: NutriAITool[] = [];
+export const NUTRAI_TOOLS: NutriAITool[] = [
+  searchClientsTool,
+  getClientProfileTool,
+  getActivePlanTool,
+  getClientAlertsTool,
+];
