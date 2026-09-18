@@ -7,6 +7,21 @@ export async function POST(request: NextRequest) {
     if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = await request.json()
+
+    // Versioning: when editing an existing plan, parent_plan_id points to the root of the
+    // version chain. version = max existing version among root + all its direct children + 1.
+    const parentPlanId: string | null = body.parent_plan_id ?? null
+    let version = 1
+    if (parentPlanId) {
+      const { data: existing } = await supabase
+        .from('nutrition_plans')
+        .select('version')
+        .or(`id.eq.${parentPlanId},parent_plan_id.eq.${parentPlanId}`)
+        .eq('business_id', ctx.businessId)
+      const versions = (existing ?? []).map((p: Record<string, unknown>) => (p.version as number) ?? 1)
+      version = (versions.length > 0 ? Math.max(...versions) : 0) + 1
+    }
+
     const { data, error } = await supabase
       .from('nutrition_plans')
       .insert({
@@ -17,6 +32,9 @@ export async function POST(request: NextRequest) {
         client_phone:    body.client_phone    ?? null,
         client_email:    body.client_email    ?? null,
         client_document: body.client_document ?? null,
+        client_id:       body.client_id       ?? null,
+        parent_plan_id:  parentPlanId,
+        version,
         duration_days:   body.duration_days,
         notes:           body.notes           ?? null,
       })

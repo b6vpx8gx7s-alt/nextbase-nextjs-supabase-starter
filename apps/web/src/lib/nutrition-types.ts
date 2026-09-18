@@ -19,6 +19,9 @@ export interface NutritionPlan {
   client_phone?: string
   client_email?: string
   client_document?: string
+  client_id?: string | null
+  parent_plan_id?: string | null
+  version?: number
   duration_days: number
   notes?: string
   patient_info?: PatientInfo | null

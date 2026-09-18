@@ -247,6 +247,36 @@ export function PlanEditor({ initialPlan, onSave, onCancel }: PlanEditorProps) {
       .catch(() => { /* non-critical */ })
   }, [])
 
+  // In edit mode, pre-load meals from the original plan
+  useEffect(() => {
+    if (!initialPlan?.id) return
+    fetch(`/api/nutrition/meals/${initialPlan.id}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((meals: NutritionMeal[]) => {
+        if (!Array.isArray(meals) || meals.length === 0) return
+        const m: Record<string, MealData> = {}
+        for (const meal of meals) {
+          m[mealKey(meal.day, meal.meal_type)] = {
+            foods: (meal.foods ?? []).map(f => ({
+              foodId: f.food_id ?? f.name,
+              name: f.name,
+              quantity: f.quantity,
+              unit: f.unit,
+              calories: f.calories ?? 0,
+              protein: f.protein ?? 0,
+              carbs: f.carbs ?? 0,
+              fat: f.fat ?? 0,
+              customFood: f.custom_food,
+              allergens: f.allergens ?? [],
+            })),
+            notes: meal.notes ?? '',
+          }
+        }
+        setSelectedMeals(m)
+      })
+      .catch(() => { /* non-critical — editor still usable without pre-loaded meals */ })
+  }, [initialPlan?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Fetch food results from catalog API on query change
   useEffect(() => {
     const q = foodQuery.trim()
@@ -523,6 +553,9 @@ export function PlanEditor({ initialPlan, onSave, onCancel }: PlanEditorProps) {
         client_phone:    clientPhone    || undefined,
         client_email:    clientEmail    || undefined,
         client_document: clientDocument || undefined,
+        client_id:       initialPlan?.client_id ?? null,
+        // Flat version chain: new version always points to the root of the family
+        parent_plan_id:  initialPlan?.parent_plan_id ?? initialPlan?.id ?? null,
         duration_days:   selectedDays,
         notes:           clinicalNotes  || undefined,
         patientInfo:     Object.keys(piPayload).length > 0 ? piPayload : undefined,
