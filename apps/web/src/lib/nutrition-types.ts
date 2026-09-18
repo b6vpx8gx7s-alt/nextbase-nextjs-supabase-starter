@@ -35,7 +35,13 @@ export interface NutritionMeal {
     name: string
     quantity: number
     unit: string
-    customFood?: boolean
+    food_id?: string | null
+    custom_food?: boolean
+    calories?: number
+    protein?: number
+    carbs?: number
+    fat?: number
+    allergens?: string[]
   }>
   macros?: {
     calories: number
@@ -71,7 +77,18 @@ export interface CreateMealsRequest {
   meals: Array<{
     day: number
     meal_type: 'breakfast' | 'lunch' | 'snack' | 'dinner'
-    foods?: Array<{ name: string; quantity: number; unit: string; customFood?: boolean }>
+    foods?: Array<{
+      name: string
+      quantity: number
+      unit: string
+      food_id?: string | null
+      custom_food?: boolean
+      calories?: number
+      protein?: number
+      carbs?: number
+      fat?: number
+      allergens?: string[]
+    }>
     macros?: { calories: number; protein: number; carbs: number; fat: number }
     notes?: string
   }>

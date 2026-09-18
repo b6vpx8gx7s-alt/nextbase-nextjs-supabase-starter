@@ -280,7 +280,7 @@ export async function exportPlanToPDF(
         let name = food.name.length > maxChars
           ? food.name.slice(0, maxChars - 1) + '…'
           : food.name
-        if (food.customFood) name += ' ✦'
+        if (food.custom_food) name += ' ✦'
         doc.text(name, M + 4, y + 3.4)
         tc(...GRAY)
         doc.text(`${food.quantity} ${food.unit}`, M + CW - 1, y + 3.4, { align: 'right' })

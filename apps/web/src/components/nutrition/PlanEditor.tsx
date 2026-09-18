@@ -16,7 +16,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { NutritionPlan, NutritionMeal } from '@/lib/nutrition-types'
-import { Food, searchFoods } from '@/lib/foods-data'
+import { type Food } from '@/lib/foods-data'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,6 +30,7 @@ interface SelectedFood {
   carbs: number
   fat: number
   customFood?: boolean
+  allergens?: string[]
 }
 
 interface CustomFoodForm {
@@ -188,15 +189,16 @@ export function PlanEditor({ initialPlan, onSave, onCancel }: PlanEditorProps) {
     for (const meal of initialPlan.meals) {
       m[mealKey(meal.day, meal.meal_type)] = {
         foods: (meal.foods ?? []).map(f => ({
-          foodId: f.name,
+          foodId: f.food_id ?? f.name,
           name: f.name,
           quantity: f.quantity,
           unit: f.unit,
-          calories: 0,
-          protein: 0,
-          carbs: 0,
-          fat: 0,
-          customFood: f.customFood,
+          calories: f.calories ?? 0,
+          protein: f.protein ?? 0,
+          carbs: f.carbs ?? 0,
+          fat: f.fat ?? 0,
+          customFood: f.custom_food,
+          allergens: f.allergens ?? [],
         })),
         notes: meal.notes ?? '',
       }
@@ -245,9 +247,19 @@ export function PlanEditor({ initialPlan, onSave, onCancel }: PlanEditorProps) {
       .catch(() => { /* non-critical */ })
   }, [])
 
-  // Update local food results on query change
+  // Fetch food results from catalog API on query change
   useEffect(() => {
-    setFoodResults(searchFoods(foodQuery))
+    const q = foodQuery.trim()
+    if (!q) {
+      setFoodResults([])
+      return
+    }
+    const controller = new AbortController()
+    fetch(`/api/nutrition/foods/search?q=${encodeURIComponent(q)}`, { signal: controller.signal })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: Food[]) => setFoodResults(Array.isArray(data) ? data : []))
+      .catch(() => { /* aborted or network error — keep previous results */ })
+    return () => controller.abort()
   }, [foodQuery])
 
   // Close search panel when clicking outside
@@ -460,6 +472,21 @@ export function PlanEditor({ initialPlan, onSave, onCancel }: PlanEditorProps) {
       foods: [...meal.foods, entry],
     })
 
+    // Best-effort: submit as a pending suggestion for future catalog approval
+    fetch('/api/nutrition/foods/suggest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre:        customForm.name.trim(),
+        calorias:      parseFloat(customForm.calories) || 0,
+        proteina:      parseFloat(customForm.protein)  || 0,
+        carbohidratos: parseFloat(customForm.carbs)    || 0,
+        grasa:         parseFloat(customForm.fat)      || 0,
+        unidad:        'g',
+        fuente:        'personalizado',
+      }),
+    }).catch(err => console.error('[foods/suggest]', err))
+
     closeCustomModal()
     setFoodQuery('')
     setActiveMealKey(null)
@@ -527,7 +554,13 @@ export function PlanEditor({ initialPlan, onSave, onCancel }: PlanEditorProps) {
                 name: f.name,
                 quantity: f.quantity,
                 unit: f.unit,
-                customFood: f.customFood,
+                food_id: f.foodId?.startsWith('custom-') ? null : (f.foodId ?? null),
+                custom_food: f.customFood ?? false,
+                calories: f.calories,
+                protein: f.protein,
+                carbs: f.carbs,
+                fat: f.fat,
+                allergens: f.allergens ?? [],
               })),
               macros: sumMacros(meal.foods),
               notes: meal.notes,
