@@ -51,27 +51,33 @@ async function AuthGuard({ children }: { children: ReactNode }) {
   }
 
   if (businessId) {
-    // Nutrition is a gym add-on: the base business must be 'gym' AND must
-    // have 'nutricion' explicitly in business_services. Both checks are
-    // required — the second alone is not enough because a manual INSERT into
-    // business_services could otherwise grant access to a non-gym business.
+    // Two valid cases for access:
+    // 1. category='gym' with 'nutricion' explicitly in business_services (add-on model)
+    // 2. category='nutricion' directly (pure nutrition business)
     const [bizRes, svcRes] = await Promise.all([
       admin.from('businesses').select('category').eq('id', businessId).maybeSingle(),
       admin.from('business_services').select('service').eq('business_id', businessId).eq('service', 'nutricion').maybeSingle(),
     ]);
 
+    const category = bizRes.data?.category;
+    const hasNutricion = !!svcRes.data;
+    const isGymWithNutricion = category === 'gym' && hasNutricion;
+    const isPureNutricion = category === 'nutricion';
+
     console.error('[AuthGuard] business check:', {
       businessId,
-      category: bizRes.data?.category ?? null,
+      category: category ?? null,
       bizError: bizRes.error?.message ?? null,
-      hasNutricion: !!svcRes.data,
+      hasNutricion,
       svcError: svcRes.error?.message ?? null,
+      isGymWithNutricion,
+      isPureNutricion,
     });
 
-    if (bizRes.data?.category !== 'gym' || !svcRes.data) {
-      console.error('[AuthGuard] redirect → /login (category !== gym or no nutricion service)', {
-        category: bizRes.data?.category,
-        hasNutricion: !!svcRes.data,
+    if (!isGymWithNutricion && !isPureNutricion) {
+      console.error('[AuthGuard] redirect → /login (not gym+nutricion and not pure nutricion)', {
+        category,
+        hasNutricion,
       });
       redirect('/login');
     }
