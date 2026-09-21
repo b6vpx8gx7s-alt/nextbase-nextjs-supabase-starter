@@ -8,6 +8,14 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
 
+    // TEMPORARY DIAGNOSTIC LOG — remove after confirming parent_plan_id arrives correctly
+    console.log('[POST /api/nutrition/plans] body received:', {
+      client_name:    body.client_name,
+      parent_plan_id: body.parent_plan_id ?? '(missing/null)',
+      client_id:      body.client_id      ?? '(missing/null)',
+      duration_days:  body.duration_days,
+    })
+
     // Versioning: when editing an existing plan, parent_plan_id points to the root of the
     // version chain. version = max existing version among root + all its direct children + 1.
     const parentPlanId: string | null = body.parent_plan_id ?? null
