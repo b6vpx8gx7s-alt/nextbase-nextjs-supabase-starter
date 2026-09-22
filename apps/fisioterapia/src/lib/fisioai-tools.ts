@@ -9,6 +9,7 @@ import {
   suggestExerciseReplacementTool,
   confirmExerciseReplacementTool,
 } from './fisioai-tools-routine';
+import { suggestFisioContextTool } from './fisioai-tools-catalog';
 
 export interface FisioAIToolInput {
   [key: string]: string | number | boolean;
@@ -34,4 +35,5 @@ export const FISIO_TOOLS: FisioAITool[] = [
   getClientAlertsTool,
   suggestExerciseReplacementTool,
   confirmExerciseReplacementTool,
+  suggestFisioContextTool,
 ];

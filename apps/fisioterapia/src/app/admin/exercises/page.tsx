@@ -4,7 +4,7 @@ import { AdminExerciseTabs } from './AdminExerciseTabs';
 export default async function AdminExercisesPage() {
   const admin = createFisioAdminClient();
 
-  const [exercisesResult, restrictionsResult] = await Promise.all([
+  const [exercisesResult, restrictionsResult, contextResult] = await Promise.all([
     admin
       .from('exercises')
       .select('id, nombre, grupo_muscular, gif_url, businesses(name)')
@@ -14,6 +14,11 @@ export default async function AdminExercisesPage() {
     admin
       .from('exercise_restriction_suggestions')
       .select('id, exercise_id, exercise_nombre, zona_corporal, severidad, motivo')
+      .eq('status', 'pending')
+      .order('exercise_nombre'),
+    admin
+      .from('fisio_context_suggestions')
+      .select('id, exercise_id, exercise_nombre, grupo_muscular, patron, motivo')
       .eq('status', 'pending')
       .order('exercise_nombre'),
   ]);
@@ -35,6 +40,15 @@ export default async function AdminExercisesPage() {
     motivo: (s.motivo as string | null) ?? null,
   }));
 
+  const context = contextResult.error ? [] : (contextResult.data ?? []).map((s) => ({
+    id: s.id as string,
+    exercise_id: s.exercise_id as string,
+    exercise_nombre: s.exercise_nombre as string,
+    grupo_muscular: (s.grupo_muscular as string | null) ?? null,
+    patron: (s.patron as string | null) ?? null,
+    motivo: (s.motivo as string | null) ?? null,
+  }));
+
   return (
     <div className="space-y-6">
       <div>
@@ -43,7 +57,11 @@ export default async function AdminExercisesPage() {
           Aprueba sugerencias de negocios y administra el catálogo global.
         </p>
       </div>
-      <AdminExerciseTabs initialPending={pending} initialRestrictions={restrictions} />
+      <AdminExerciseTabs
+        initialPending={pending}
+        initialRestrictions={restrictions}
+        initialContext={context}
+      />
     </div>
   );
 }

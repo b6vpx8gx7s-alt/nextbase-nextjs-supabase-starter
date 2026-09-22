@@ -5,6 +5,7 @@ import { ExerciseApprovalList } from './ExerciseApprovalList';
 import { ExerciseCatalogList } from './ExerciseCatalogList';
 import { ExerciseUnpublishedList } from './ExerciseUnpublishedList';
 import { ExerciseRestrictionApprovalList } from './ExerciseRestrictionApprovalList';
+import { FisioContextSuggestionList } from './FisioContextSuggestionList';
 
 type PendingExercise = {
   id: string;
@@ -23,14 +24,25 @@ type RestrictionSuggestion = {
   motivo: string | null;
 };
 
-type Tab = 'pending' | 'catalog' | 'unpublished' | 'restrictions';
+type ContextSuggestion = {
+  id: string;
+  exercise_id: string;
+  exercise_nombre: string;
+  grupo_muscular: string | null;
+  patron: string | null;
+  motivo: string | null;
+};
+
+type Tab = 'pending' | 'catalog' | 'unpublished' | 'restrictions' | 'context';
 
 export function AdminExerciseTabs({
   initialPending,
   initialRestrictions,
+  initialContext,
 }: {
   initialPending: PendingExercise[];
   initialRestrictions: RestrictionSuggestion[];
+  initialContext: ContextSuggestion[];
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('pending');
 
@@ -66,6 +78,14 @@ export function AdminExerciseTabs({
             </span>
           )}
         </button>
+        <button onClick={() => setActiveTab('context')} className={tabClass('context')}>
+          Contexto sugerido
+          {initialContext.length > 0 && (
+            <span className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
+              {initialContext.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {activeTab === 'pending' && <ExerciseApprovalList initialExercises={initialPending} />}
@@ -73,6 +93,9 @@ export function AdminExerciseTabs({
       {activeTab === 'unpublished' && <ExerciseUnpublishedList />}
       {activeTab === 'restrictions' && (
         <ExerciseRestrictionApprovalList initialPending={initialRestrictions} />
+      )}
+      {activeTab === 'context' && (
+        <FisioContextSuggestionList initialPending={initialContext} />
       )}
     </div>
   );
