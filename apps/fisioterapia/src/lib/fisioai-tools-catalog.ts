@@ -55,20 +55,27 @@ export const suggestFisioContextTool: FisioAITool = {
         .select('exercise_id')
       const alreadyDoneIds = new Set((alreadySuggested ?? []).map((s) => s.exercise_id as string))
 
+      // Fetch a large pool and shuffle so each batch mixes different
+      // patrons/muscle groups, reducing inter-item "contagion" bias.
       const { data } = await supabase
         .from('exercises')
         .select('id, nombre, patron, grupo_muscular, equipo, descripcion_breve')
         .eq('context', 'gym')
-        .order('nombre')
-        .limit(batchLimit * 4)
+        .limit(batchLimit * 8)
 
       if (!data || data.length === 0) {
         return { success: true, processed: 0, message: 'No hay ejercicios de gym en el catálogo' }
       }
 
-      pending = data
-        .filter((e) => !alreadyDoneIds.has(e.id as string))
-        .slice(0, batchLimit) as ExerciseRow[]
+      const unprocessed = data.filter((e) => !alreadyDoneIds.has(e.id as string))
+
+      // Fisher-Yates shuffle so each batch spans varied patterns/groups
+      for (let j = unprocessed.length - 1; j > 0; j--) {
+        const k = Math.floor(Math.random() * (j + 1))
+        ;[unprocessed[j], unprocessed[k]] = [unprocessed[k], unprocessed[j]]
+      }
+
+      pending = unprocessed.slice(0, batchLimit) as ExerciseRow[]
     }
 
     if (pending.length === 0) {
@@ -103,7 +110,7 @@ ${grupo
 
 CRITERIO: Un ejercicio es apto para fisioterapia cuando: (1) se usa en protocolos de rehab estándar, (2) permite ajuste de carga/rango muy bajo o se hace con peso corporal, (3) aísla el músculo de forma controlada. NO es apto si es principalmente un movimiento compuesto de fuerza máxima, deporte de alto rendimiento, o requiere carga axial alta.
 
-EJEMPLOS DE CALIBRACIÓN:
+EJEMPLOS DE CALIBRACIÓN (generales):
 - "Curl de bíceps con mancuerna" → SÍ (rehab de codo/hombro, control aislado de carga)
 - "Extensión de rodilla en máquina" → SÍ (rehab de rodilla estándar en fisio)
 - "Elevación lateral de hombro" → SÍ (rehab de manguito rotador)
@@ -115,13 +122,23 @@ EJEMPLOS DE CALIBRACIÓN:
 - "Clean and jerk" → NO (movimiento olímpico de potencia)
 - "Dominadas con lastre" → NO (alta carga relativa)
 
+EJEMPLOS DE CALIBRACIÓN (core/abdominales — distingue por variable específica):
+- "Abdominales asistidos" (máquina o con asistencia) → SÍ, motivo: "Permite reducir la carga y controlar el rango de movimiento, apropiado para fases tempranas de rehabilitación de core"
+- "Abdominales 3/4" (rango parcial, sin equipo) → SÍ, motivo: "Rango de movimiento reducido disminuye la tensión en zona lumbar, apropiado para rehabilitación"
+- "Abdominales completos con brazos arriba" (rango completo, brazos extendidos aumentan palanca) → NO, motivo: "Brazos extendidos incrementan la palanca sobre la columna lumbar; existen alternativas de menor riesgo para rehabilitación"
+- "Abdominales declinados ponderados" (banco declinado + peso) → NO, motivo: "Banco declinado y peso añadido combinan mayor palanca y carga externa, excediendo lo apropiado para protocolos de rehab estándar"
+
+INSTRUCCIÓN DE CONSISTENCIA ENTRE VARIANTES: Cuando dos ejercicios sean variantes del mismo movimiento base, tu criterio de diferenciación debe ser explícito y consistente. Identifica qué variable específica (rango de movimiento, palanca, asistencia, carga externa, equipo) hace que uno sea apropiado y el otro no, y menciona esa variable tanto en el motivo del aprobado como en el motivo del descartado.
+
 Compara los ${grupo.length} ejercicios entre sí. La MAYORÍA de ejercicios de gym NO son protocolos de fisioterapia. Solo marca como apto lo que genuinamente encontrarías en un programa de rehabilitación clínica. Sé conservador — si dudas, NO lo marques.
+
+IMPORTANTE: Para TODOS los ejercicios (tanto aptos como no aptos) incluye un motivo breve. Esto permite auditar la calidad de los descartes.
 
 Responde SOLO JSON, sin markdown, un array con un objeto por cada ejercicio del 1 al ${grupo.length}:
 {
   "results": [
     { "index": 1, "apto": true, "motivo": "breve razón clínica de por qué es útil en rehab (máx 20 palabras)" },
-    { "index": 2, "apto": false }
+    { "index": 2, "apto": false, "motivo": "breve razón de por qué no aplica en rehab (máx 15 palabras)" }
   ]
 }`,
           },
@@ -145,7 +162,7 @@ Responde SOLO JSON, sin markdown, un array con un objeto por cada ejercicio del 
               exercise_nombre: ex.nombre,
               grupo_muscular: ex.grupo_muscular,
               patron: ex.patron,
-              motivo: item.apto ? (item.motivo ?? null) : null,
+              motivo: item.motivo ?? null,
               status: item.apto ? 'pending' : 'no_match',
             })
             if (!error && item.apto) totalSuggestions++
