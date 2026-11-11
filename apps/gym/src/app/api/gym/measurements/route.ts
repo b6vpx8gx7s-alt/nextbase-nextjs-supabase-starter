@@ -12,35 +12,19 @@ export async function GET(request: Request) {
 
     const supabase = createGymAdminClient();
 
-    // Latest measurement per type for this client
-    const { data, error } = await supabase.rpc('get_latest_measurements', {
-      p_client_id: clientId,
-      p_business_id: ctx.businessId,
-    });
+    // Return full history (all entries) ordered newest first — component groups and compares
+    const { data, error } = await supabase
+      .from('gym_measurements')
+      .select(`
+        id, measurement_type, value, unit, measured_at, notes, created_at,
+        measurement_types ( label, category, unit_default, min_value, max_value )
+      `)
+      .eq('client_id', clientId)
+      .eq('business_id', ctx.businessId)
+      .order('measured_at', { ascending: false })
+      .limit(200);
 
-    if (error) {
-      // Fallback if RPC doesn't exist yet: fetch all and dedupe in JS
-      const { data: all, error: allErr } = await supabase
-        .from('gym_measurements')
-        .select(`
-          id, measurement_type, value, unit, measured_at, notes, created_at,
-          measurement_types ( label, category, unit_default, min_value, max_value )
-        `)
-        .eq('client_id', clientId)
-        .eq('business_id', ctx.businessId)
-        .order('measured_at', { ascending: false });
-
-      if (allErr) throw new Error(allErr.message);
-
-      const seen = new Set<string>();
-      const latest = (all ?? []).filter((row) => {
-        if (seen.has(row.measurement_type)) return false;
-        seen.add(row.measurement_type);
-        return true;
-      });
-
-      return NextResponse.json({ measurements: latest });
-    }
+    if (error) throw new Error(error.message);
 
     return NextResponse.json({ measurements: data ?? [] });
   } catch (err) {
