@@ -25,6 +25,12 @@ export async function updateSession(request: NextRequest) {
           );
         },
       },
+      cookieOptions: {
+        domain: '.roda.ink',
+        path: '/',
+        sameSite: 'lax',
+        secure: true,
+      },
     }
   );
 
