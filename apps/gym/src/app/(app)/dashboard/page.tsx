@@ -6,9 +6,10 @@ import { getRodaAIBusinessContext } from '@/lib/rodaai-business';
 export default async function DashboardPage() {
   const supabase = await createSupabaseClient();
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
 
+  const user = session?.user;
   let userRole: 'trainer' | 'client' = 'trainer';
   if (user) {
     try {

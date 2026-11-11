@@ -5,9 +5,10 @@ import { AppSidebarContent } from './app-sidebar-client';
 export async function AppSidebar() {
   const supabase = await createSupabaseClient();
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
 
+  const user = session?.user;
   if (!user) return null;
 
   const admin = createAdminClient();

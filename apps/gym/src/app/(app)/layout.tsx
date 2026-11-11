@@ -9,9 +9,10 @@ import { createAdminClient } from '@/supabase-clients/admin';
 async function AuthGuard({ children }: { children: ReactNode }) {
   const supabase = await createSupabaseClient();
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
 
+  const user = session?.user;
   if (!user) {
     redirect('/login');
   }
@@ -51,9 +52,10 @@ async function AuthGuard({ children }: { children: ReactNode }) {
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const supabase = await createSupabaseClient();
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
 
+  const user = session?.user;
   let rodaaiContext: RodaAIBusinessContext | null = null;
   if (user) {
     try {
