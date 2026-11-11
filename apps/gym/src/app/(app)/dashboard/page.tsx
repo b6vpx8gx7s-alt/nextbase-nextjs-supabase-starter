@@ -8,8 +8,7 @@ export default async function DashboardPage() {
   const {
     data: { session },
   } = await supabase.auth.getSession();
-
-  const user = session?.user;
+  const user = session?.user ?? null;
   let userRole: 'trainer' | 'client' = 'trainer';
   if (user) {
     try {

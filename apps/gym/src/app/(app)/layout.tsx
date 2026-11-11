@@ -11,8 +11,7 @@ async function AuthGuard({ children }: { children: ReactNode }) {
   const {
     data: { session },
   } = await supabase.auth.getSession();
-
-  const user = session?.user;
+  const user = session?.user ?? null;
   if (!user) {
     redirect('/login');
   }
@@ -54,8 +53,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const {
     data: { session },
   } = await supabase.auth.getSession();
-
-  const user = session?.user;
+  const user = session?.user ?? null;
   let rodaaiContext: RodaAIBusinessContext | null = null;
   if (user) {
     try {
