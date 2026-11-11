@@ -11,6 +11,7 @@ import { RoutineView } from '@/components/fisio/RoutineView';
 import { ClinicalHistory } from '@/components/fisio/ClinicalHistory';
 import { PatientGoals } from '@/components/fisio/PatientGoals';
 import { ClientTrainingHistory } from '@/components/gym/ClientTrainingHistory';
+import { ClientProgressPhotos } from '@/components/gym/ClientProgressPhotos';
 import { LimitationSuggestions } from '@/components/LimitationSuggestions';
 import type { GymClient, PhysioRoutine } from '@/lib/fisio-types';
 import { ChevronLeft, Activity } from 'lucide-react';
@@ -243,6 +244,9 @@ export default function ClientDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Fotos de progreso del cliente */}
+      <ClientProgressPhotos clientId={id} />
 
       {/* Historial de entrenamiento registrado por el cliente */}
       <ClientTrainingHistory clientId={id} />

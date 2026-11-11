@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Users, LogOut, Salad } from 'lucide-react';
+import { Users, LogOut, Salad, Settings } from 'lucide-react';
 import { createClient } from '@/supabase-clients/client';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -16,6 +16,7 @@ export function AppSidebarContent({ user, services }: { user: User; services: st
     ...(services.includes('nutricion')
       ? [{ title: 'Nutrición', url: 'https://nutrition.roda.ink/dashboard', icon: Salad, external: true }]
       : []),
+    { title: 'Configuración', url: '/configuracion', icon: Settings },
   ];
   const pathname = usePathname();
   const router = useRouter();
