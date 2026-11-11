@@ -115,6 +115,35 @@ export default function ClientDetailPage() {
         </Button>
       </div>
 
+      {/* Información de salud enviada por el cliente */}
+      {(client.problema_cardiovascular || client.lesion_actual || client.notas) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Información de salud</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {client.problema_cardiovascular && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">🩺 Patologías</p>
+                <p className="text-sm whitespace-pre-wrap">{client.problema_cardiovascular}</p>
+              </div>
+            )}
+            {client.notas && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">⚠️ Contraindicaciones</p>
+                <p className="text-sm whitespace-pre-wrap">{client.notas}</p>
+              </div>
+            )}
+            {client.lesion_actual && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">🦴 Limitaciones de movimiento</p>
+                <p className="text-sm whitespace-pre-wrap">{client.lesion_actual}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Sugerencias de limitaciones detectadas por IA */}
       <LimitationSuggestions clientId={id} userRole="trainer" />
 
