@@ -462,7 +462,7 @@ export function ClinicalHistory({ clientId }: Props) {
                   <div className="flex gap-3">
                     <div className="flex-1">
                       <label className="mb-1 block text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                        Valor{selectedTypeMeta?.min_value !== null && selectedTypeMeta?.max_value !== null
+                        Valor{selectedTypeMeta && selectedTypeMeta.min_value !== null && selectedTypeMeta.max_value !== null
                           ? ` (${selectedTypeMeta.min_value}–${selectedTypeMeta.max_value})` : ''}
                       </label>
                       <input type="number" value={value} onChange={e => setValue(e.target.value)} placeholder="0"
